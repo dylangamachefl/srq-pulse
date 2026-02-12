@@ -12,6 +12,7 @@ in error handling with fallback to degraded mode.
 import os
 import io
 import re
+import time
 import zipfile
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -53,36 +54,57 @@ def ingest_mls_listings() -> bool:
     """
     global INGEST_FAILED
     
-    try:
-        logger.info("Starting MLS listing ingestion via homeharvest...")
-        
-        # Fetch listings from the past 1 day to keep execution time low
-        properties = scrape_property(
-            location="Sarasota, FL",
-            listing_type="for_sale",
-            past_days=1
-        )
-        
-        # Validate output - empty DataFrame is a silent failure
-        if properties is None or len(properties) == 0:
-            error_msg = "homeharvest returned empty DataFrame - possible API change or rate limiting"
-            log_error(error_msg)
-            INGEST_FAILED = True
-            return False
-        
-        # Save to data directory
-        Path("data").mkdir(exist_ok=True)
-        output_path = Path("data/latest_listings.csv")
-        properties.to_csv(output_path, index=False)
-        
-        logger.info(f"✅ Successfully ingested {len(properties)} MLS listings")
-        return True
-        
-    except Exception as e:
-        error_msg = f"MLS ingestion failed: {type(e).__name__}: {str(e)}"
-        log_error(error_msg)
-        INGEST_FAILED = True
-        return False
+    max_retries = 3
+    base_delay = 5  # seconds
+    
+    for attempt in range(max_retries):
+        try:
+            if attempt > 0:
+                # Exponential backoff: 5s, 10s, 20s
+                delay = base_delay * (2 ** (attempt - 1))
+                logger.info(f"Retry attempt {attempt + 1}/{max_retries} after {delay}s delay...")
+                time.sleep(delay)
+            
+            logger.info("Starting MLS listing ingestion via homeharvest...")
+            
+            # Add a small delay before scraping to be respectful
+            time.sleep(2)
+            
+            # Fetch listings from the past 1 day to keep execution time low
+            properties = scrape_property(
+                location="Sarasota, FL",
+                listing_type="for_sale",
+                past_days=1
+            )
+            
+            # Validate output - empty DataFrame is a silent failure
+            if properties is None or len(properties) == 0:
+                error_msg = "homeharvest returned empty DataFrame - possible API change or rate limiting"
+                log_error(error_msg)
+                INGEST_FAILED = True
+                return False
+            
+            # Save to data directory
+            Path("data").mkdir(exist_ok=True)
+            output_path = Path("data/latest_listings.csv")
+            properties.to_csv(output_path, index=False)
+            
+            logger.info(f"✅ Successfully ingested {len(properties)} MLS listings")
+            return True
+            
+        except Exception as e:
+            error_msg = f"MLS ingestion failed (attempt {attempt + 1}/{max_retries}): {type(e).__name__}: {str(e)}"
+            
+            # If this is the last retry, log the error and give up
+            if attempt == max_retries - 1:
+                log_error(error_msg)
+                INGEST_FAILED = True
+                return False
+            else:
+                # Otherwise, just log to console and retry
+                logger.warning(error_msg)
+    
+    return False
 
 
 def ingest_county_data() -> bool:
@@ -113,13 +135,13 @@ def ingest_county_data() -> bool:
         with zipfile.ZipFile(io.BytesIO(response.content)) as zf:
             # Load parcel records (full property details)
             logger.info("Extracting Sarasota.csv...")
-            with zf.open("Sarasota.csv") as csv_file:
-                parcels_df = pd.read_csv(csv_file, low_memory=False)
+            with zf.open("Parcel_Sales_CSV/Sarasota.csv") as csv_file:
+                parcels_df = pd.read_csv(csv_file, low_memory=False, encoding='latin-1', encoding_errors='replace')
             
             # Load sales transaction history
             logger.info("Extracting ParcelSales.csv...")
-            with zf.open("ParcelSales.csv") as csv_file:
-                sales_df = pd.read_csv(csv_file, low_memory=False)
+            with zf.open("Parcel_Sales_CSV/ParcelSales.csv") as csv_file:
+                sales_df = pd.read_csv(csv_file, low_memory=False, encoding='latin-1', encoding_errors='replace')
         
         # Filter and clean parcel data
         logger.info("Filtering parcel data to LOCCITY == 'SARASOTA'...")
