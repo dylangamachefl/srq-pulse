@@ -2,9 +2,8 @@ __pycache__/
 *.pyc
 .env
 *.tmp
-data/latest_listings.csv
 data/*.zip
-data/county_parcels.csv
-data/county_sales.csv
-*.log
-sarasota_pulse_implementation_plan.md
+data/errors.log
+data/inbox/*.csv
+data/redfin/*.csv
+# Keep history_*.csv, county_*.csv, zillow_*.csv tracked for state management

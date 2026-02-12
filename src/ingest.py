@@ -1,18 +1,20 @@
 """
-Sarasota Market Pulse — Data Ingestion Engine
+Sarasota Market Pulse — Data Ingestion Engine (V4)
 
 This module handles:
-1. MLS listing data via homeharvest (unofficial Realtor.com scraper)
-2. Sarasota County Property Appraiser data (parcels + sales)
+1. Zillow Research Data (ZHVI home values + ZORI rent index) - Direct CSV downloads
+2. Redfin Data Center (6 Tableau crosstabs) - Playwright automation with inbox fallback
+3. Sarasota County Property Appraiser data (parcels + sales) - Direct ZIP download
 
-Critical: homeharvest is fragile and breaks frequently. All calls are wrapped
-in error handling with fallback to degraded mode.
+V4 Changes:
+- Removed homeharvest (unreliable, breaks frequently)
+- Added Zillow national datasets filtered to Sarasota zips
+- Added Redfin Tableau automation (dual-path: inbox fallback → Playwright)
 """
 
 import os
 import io
 import re
-import time
 import zipfile
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -20,7 +22,6 @@ import logging
 
 import pandas as pd
 import requests
-from homeharvest import scrape_property
 
 # Configure logging
 logging.basicConfig(
@@ -29,8 +30,13 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Global flag for pipeline health monitoring
-INGEST_FAILED = False
+# Sarasota zip codes for filtering Zillow data
+SARASOTA_ZIPS = [34230, 34231, 34232, 34233, 34234, 34235, 34236, 34237, 34238, 34239, 34240, 34242, 34243]
+
+# Global flags for pipeline health monitoring
+ZILLOW_FAILED = False
+REDFIN_FAILED = False
+SCPA_FAILED = False
 
 
 def log_error(message: str):
@@ -45,66 +51,188 @@ def log_error(message: str):
     logger.error(message)
 
 
-def ingest_mls_listings() -> bool:
+def ingest_zillow_data() -> bool:
     """
-    Fetch MLS listings for Sarasota, FL using homeharvest.
+    Download Zillow ZHVI (home values) and ZORI (rent index) from Zillow Research Data.
+    
+    These are direct CSV downloads - no scraping needed.
+    Files are national datasets (~50MB) - filter to Sarasota zips immediately.
     
     Returns:
         bool: True if successful, False if failed
     """
-    global INGEST_FAILED
+    global ZILLOW_FAILED
     
-    max_retries = 3
-    base_delay = 5  # seconds
+    try:
+        logger.info("Downloading Zillow ZHVI (Home Value Index)...")
+        
+        # ZHVI: All Homes (SFR, Condo/Co-op) Time Series, Smoothed, Seasonally Adjusted
+        # TODO: Project owner - provide the actual download URL from zillow.com/research/data/
+        ZHVI_URL = "https://files.zillowstatic.com/research/public_csvs/zhvi/Zip_zhvi_uc_sfrcondo_tier_0.0_0.33_sm_sa_month.csv"
+        
+        response = requests.get(ZHVI_URL, timeout=120)
+        response.raise_for_status()
+        
+        logger.info(f"Downloaded ZHVI ({len(response.content) / 1024 / 1024:.2f} MB)")
+        
+        # Load and filter to Sarasota zips
+        zhvi_df = pd.read_csv(io.StringIO(response.text), low_memory=False)
+        zhvi_df = zhvi_df[
+            (zhvi_df['StateName'] == 'FL') & 
+            (zhvi_df['City'] == 'Sarasota') &
+            (zhvi_df['RegionName'].isin(SARASOTA_ZIPS))
+        ].copy()
+        
+        # Save to data directory
+        Path("data").mkdir(exist_ok=True)
+        zhvi_path = Path("data/zillow_zhvi.csv")
+        zhvi_df.to_csv(zhvi_path, index=False)
+        logger.info(f"✅ Saved {len(zhvi_df)} ZHVI records to {zhvi_path}")
+        
+        # ZORI: All Homes Plus Multifamily Time Series, Smoothed
+        logger.info("Downloading Zillow ZORI (Observed Rent Index)...")
+        
+        # TODO: Project owner - provide the actual download URL from zillow.com/research/data/
+        ZORI_URL = "https://files.zillowstatic.com/research/public_csvs/zori/Zip_ZORI_AllHomesPlusMultifamily_Smoothed.csv"
+        
+        response = requests.get(ZORI_URL, timeout=120)
+        response.raise_for_status()
+        
+        logger.info(f"Downloaded ZORI ({len(response.content) / 1024 / 1024:.2f} MB)")
+        
+        # Load and filter to Sarasota zips
+        zori_df = pd.read_csv(io.StringIO(response.text), low_memory=False)
+        zori_df = zori_df[
+            (zori_df['StateName'] == 'FL') & 
+            (zori_df['City'] == 'Sarasota') &
+            (zori_df['RegionName'].isin(SARASOTA_ZIPS))
+        ].copy()
+        
+        # Save to data directory
+        zori_path = Path("data/zillow_zori.csv")
+        zori_df.to_csv(zori_path, index=False)
+        logger.info(f"✅ Saved {len(zori_df)} ZORI records to {zori_path}")
+        
+        return True
+        
+    except Exception as e:
+        error_msg = f"Zillow data ingestion failed: {type(e).__name__}: {str(e)}"
+        log_error(error_msg)
+        ZILLOW_FAILED = True
+        return False
+
+
+def check_redfin_inbox() -> dict:
+    """
+    Check if fresh manual CSVs exist in data/inbox/.
     
-    for attempt in range(max_retries):
-        try:
-            if attempt > 0:
-                # Exponential backoff: 5s, 10s, 20s
-                delay = base_delay * (2 ** (attempt - 1))
-                logger.info(f"Retry attempt {attempt + 1}/{max_retries} after {delay}s delay...")
-                time.sleep(delay)
-            
-            logger.info("Starting MLS listing ingestion via homeharvest...")
-            
-            # Add a small delay before scraping to be respectful
-            time.sleep(2)
-            
-            # Fetch listings from the past 1 day to keep execution time low
-            properties = scrape_property(
-                location="Sarasota, FL",
-                listing_type="for_sale",
-                past_days=1
-            )
-            
-            # Validate output - empty DataFrame is a silent failure
-            if properties is None or len(properties) == 0:
-                error_msg = "homeharvest returned empty DataFrame - possible API change or rate limiting"
-                log_error(error_msg)
-                INGEST_FAILED = True
-                return False
-            
-            # Save to data directory
-            Path("data").mkdir(exist_ok=True)
-            output_path = Path("data/latest_listings.csv")
-            properties.to_csv(output_path, index=False)
-            
-            logger.info(f"✅ Successfully ingested {len(properties)} MLS listings")
-            return True
-            
-        except Exception as e:
-            error_msg = f"MLS ingestion failed (attempt {attempt + 1}/{max_retries}): {type(e).__name__}: {str(e)}"
-            
-            # If this is the last retry, log the error and give up
-            if attempt == max_retries - 1:
-                log_error(error_msg)
-                INGEST_FAILED = True
-                return False
-            else:
-                # Otherwise, just log to console and retry
-                logger.warning(error_msg)
+    This is the fallback for when Tableau automation breaks.
+    User manually downloads 6 CSVs and drops them here.
     
-    return False
+    Returns:
+        dict: Map of metric name -> file path, or None if incomplete/stale
+    """
+    INBOX = Path("data/inbox")
+    MAX_AGE = timedelta(days=7)
+    
+    if not INBOX.exists():
+        return None
+    
+    required = {
+        "median_sale_price": None,
+        "homes_sold": None,
+        "new_listings": None,
+        "days_to_close": None,
+        "weeks_of_supply": None,
+        "avg_sale_to_list": None
+    }
+    
+    for f in INBOX.iterdir():
+        if not f.suffix == ".csv":
+            continue
+        
+        # Check file age
+        mod_time = datetime.fromtimestamp(f.stat().st_mtime)
+        if datetime.now() - mod_time > MAX_AGE:
+            logger.info(f"Skipping stale file: {f.name} (> 7 days old)")
+            continue
+        
+        # Match file name to required metrics
+        fname_lower = f.name.lower()
+        for key in required.keys():
+            if key.replace("_", "") in fname_lower.replace("_", ""):
+                required[key] = str(f)
+                break
+    
+    # Check if we have all 6 files
+    if all(v is not None for v in required.values()):
+        logger.info(f"✅ Found all 6 Redfin CSVs in inbox (< 7 days old)")
+        return required
+    else:
+        missing = [k for k, v in required.items() if v is None]
+        logger.info(f"Inbox incomplete - missing: {missing}")
+        return None
+
+
+def ingest_redfin_via_playwright() -> bool:
+    """
+    Download Redfin Tableau crosstabs via Playwright automation.
+    
+    Uses Tableau Public URLs for 6 metrics (Median Sale Price, Homes Sold,
+    New Listings, Days to Close, Weeks of Supply, Avg Sale to List).
+    
+    Returns:
+        bool: True if successful, False if failed
+    """
+    try:
+        from redfin_scraper import download_all_tabs
+        return download_all_tabs()
+    except Exception as e:
+        log_error(f"Redfin Playwright failed: {e}")
+        return False
+
+
+def ingest_redfin_data() -> bool:
+    """
+    Dual-path Redfin ingestion: inbox fallback → Playwright automation.
+    
+    Returns:
+        bool: True if successful, False if failed
+    """
+    global REDFIN_FAILED
+    
+    logger.info("Starting Redfin data ingestion (dual-path)...")
+    
+    # Path 1: Check for manual CSVs in inbox
+    inbox_files = check_redfin_inbox()
+    if inbox_files is not None:
+        logger.info("Using manual CSVs from inbox - skipping Playwright")
+        
+        # Copy inbox files to data/redfin/ with standardized names
+        redfin_dir = Path("data/redfin")
+        redfin_dir.mkdir(exist_ok=True)
+        
+        for metric_name, inbox_path in inbox_files.items():
+            dest_path = redfin_dir / f"{metric_name}.csv"
+            
+            # Read and re-save to standardize format
+            df = pd.read_csv(inbox_path)
+            df.to_csv(dest_path, index=False)
+            logger.info(f"  ✅ Copied {metric_name}.csv from inbox")
+        
+        return True
+    
+    # Path 2: Run Playwright automation
+    logger.info("Inbox empty/stale - attempting Playwright automation...")
+    playwright_success = ingest_redfin_via_playwright()
+    
+    if not playwright_success:
+        error_msg = "Redfin ingestion failed - both inbox and Playwright unavailable"
+        log_error(error_msg)
+        REDFIN_FAILED = True
+        return False
+    
+    return True
 
 
 def ingest_county_data() -> bool:
@@ -113,10 +241,12 @@ def ingest_county_data() -> bool:
     
     Source: https://www.sc-pa.com/ > Download Data > SCPA_Parcels_Sales_CSV.zip
     
+    UNCHANGED from V3 - same download, unzip, filter logic.
+    
     Returns:
         bool: True if successful, False if failed
     """
-    global INGEST_FAILED
+    global SCPA_FAILED
     
     # Direct download URL for SCPA_Parcels_Sales_CSV.zip
     # Verified on 2026-02-12 from sc-pa.com Download Data page
@@ -176,32 +306,36 @@ def ingest_county_data() -> bool:
     except Exception as e:
         error_msg = f"County data ingestion failed: {type(e).__name__}: {str(e)}"
         log_error(error_msg)
-        INGEST_FAILED = True
+        SCPA_FAILED = True
         return False
 
 
 def run_ingestion() -> bool:
     """
-    Run both MLS and county data ingestion.
+    Run all data ingestion tasks (Zillow, Redfin, County).
     
     Returns:
-        bool: True if both succeeded, False if either failed
+        bool: True if at least one source succeeded (partial success OK)
     """
     logger.info("=" * 60)
-    logger.info("STARTING DATA INGESTION")
+    logger.info("STARTING DATA INGESTION (V4)")
     logger.info("=" * 60)
     
-    mls_success = ingest_mls_listings()
+    zillow_success = ingest_zillow_data()
+    redfin_success = ingest_redfin_data()
     county_success = ingest_county_data()
     
-    success = mls_success and county_success
+    success_count = sum([zillow_success, redfin_success, county_success])
     
-    if success:
+    if success_count == 3:
         logger.info("✅ All ingestion tasks completed successfully")
+        return True
+    elif success_count > 0:
+        logger.warning(f"⚠️  Partial success: {success_count}/3 sources ingested - pipeline in degraded mode")
+        return True
     else:
-        logger.warning("⚠️  Some ingestion tasks failed - pipeline in degraded mode")
-    
-    return success
+        logger.error("❌ All ingestion tasks failed - cannot proceed")
+        return False
 
 
 if __name__ == "__main__":

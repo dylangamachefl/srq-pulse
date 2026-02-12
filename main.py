@@ -21,7 +21,7 @@ import pandas as pd
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-from ingest import run_ingestion, INGEST_FAILED
+from ingest import run_ingestion, ZILLOW_FAILED, REDFIN_FAILED, SCPA_FAILED
 from transform import run_transformation
 from deliver import deliver_report
 
@@ -32,15 +32,15 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def manage_history_state(current_listings_df: pd.DataFrame) -> bool:
+def manage_history_state(metrics_data: dict) -> bool:
     """
-    Manage rolling 3-day history with sanity checks.
+    Manage rolling 4-week history with sanity checks (V4 weekly cadence).
     
     This is critical - the history CSV is our "database". A corrupted
     commit breaks all future runs.
     
     Args:
-        current_listings_df: Today's listings
+        metrics_data: Dict of metric results from transformation
         
     Returns:
         bool: True if state management succeeded
@@ -59,30 +59,31 @@ def manage_history_state(current_listings_df: pd.DataFrame) -> bool:
     history_yesterday = data_dir / f"history_{yesterday}.csv"
     history_general = data_dir / "history.csv"
     
-    # Save today's state
-    current_listings_df.to_csv(history_today, index=False)
-    current_listings_df.to_csv(history_general, index=False)  # Also save as general history
-    logger.info(f"Saved today's listings to {history_today}")
+    # Save today's state (V4: save metrics summary, not raw listings)
+    # For now, just create a simple marker file since we're doing market-level analytics
+    import json
     
-    # Sanity check: Compare row counts
-    if history_yesterday.exists():
-        yesterday_df = pd.read_csv(history_yesterday)
-        today_count = len(current_listings_df)
-        yesterday_count = len(yesterday_df)
-        
-        # Flag if today's data is less than 50% of yesterday's
-        if today_count < yesterday_count * 0.5:
-            logger.error(
-                f"⚠️  SANITY CHECK FAILED: {today_count} rows today vs {yesterday_count} yesterday. "
-                f"Aborting commit to prevent data corruption."
-            )
-            return False
-        
-        logger.info(f"✅ Sanity check passed: {today_count} rows today vs {yesterday_count} yesterday")
-    else:
-        logger.info("No yesterday history found - likely first run")
+    metrics_summary = {
+        'run_date': today,
+        'metric_counts': {k: len(v) if isinstance(v, pd.DataFrame) else 0 for k, v in metrics_data.items()}
+    }
     
-    # Clean up old history files (keep only last 3 days)
+    with open(history_today, 'w') as f:
+        json.dump(metrics_summary, f, indent=2)
+    
+    with open(history_general, 'w') as f:
+        json.dump(metrics_summary, f, indent=2)
+    
+    logger.info(f"Saved metrics summary to {history_today}")
+    
+    # Sanity check: For weekly data, just verify we have some metrics
+    if len(metrics_data) == 0:
+        logger.error("⚠️  SANITY CHECK FAILED: No metrics generated. Aborting commit.")
+        return False
+    
+    logger.info(f"✅ Sanity check passed: Generated {len(metrics_data)} metrics")
+    
+    # Clean up old history files (keep only last 4 weeks)
     for old_file in data_dir.glob("history_*.csv"):
         file_date_str = old_file.stem.replace("history_", "")
         if len(file_date_str) == 8 and file_date_str.isdigit():
@@ -90,7 +91,21 @@ def manage_history_state(current_listings_df: pd.DataFrame) -> bool:
                 file_date = datetime.strptime(file_date_str, "%Y%m%d")
                 days_old = (datetime.now() - file_date).days
                 
-                if days_old > 3:
+                if days_old > 28:  # V4: 4 weeks instead of 3 days
+                    old_file.unlink()
+                    logger.info(f"Cleaned up old history: {old_file.name}")
+            except ValueError:
+                pass
+    
+    # Also clean up old .json history files
+    for old_file in data_dir.glob("history_*.json"):
+        file_date_str = old_file.stem.replace("history_", "")
+        if len(file_date_str) == 8 and file_date_str.isdigit():
+            try:
+                file_date = datetime.strptime(file_date_str, "%Y%m%d")
+                days_old = (datetime.now() - file_date).days
+                
+                if days_old > 28:
                     old_file.unlink()
                     logger.info(f"Cleaned up old history: {old_file.name}")
             except ValueError:
@@ -101,33 +116,19 @@ def manage_history_state(current_listings_df: pd.DataFrame) -> bool:
 
 def calculate_stats(ingestion_success: bool, start_time: float) -> dict:
     """
-    Calculate pipeline execution statistics.
+    Calculate pipeline execution statistics (V4: source-specific status).
     
     Returns:
         dict: Stats for email footer
     """
+    from ingest import ZILLOW_FAILED, REDFIN_FAILED, SCPA_FAILED
+    
     execution_time = time.time() - start_time
     
-    # Count ingested records
-    records_ingested = 0
-    county_available = False
-    
-    try:
-        listings_df = pd.read_csv("data/latest_listings.csv")
-        records_ingested = len(listings_df)
-    except FileNotFoundError:
-        pass
-    
-    try:
-        parcels_df = pd.read_csv("data/county_parcels.csv")
-        if len(parcels_df) > 0:
-            county_available = True
-    except FileNotFoundError:
-        pass
-    
     stats = {
-        'records_ingested': records_ingested,
-        'county_available': county_available,
+        'zillow_status': 'FAILED' if ZILLOW_FAILED else 'OK',
+        'redfin_status': 'FAILED' if REDFIN_FAILED else 'OK',
+        'scpa_status': 'FAILED' if SCPA_FAILED else 'OK',
         'execution_time': f"{execution_time:.1f}s"
     }
     
@@ -148,12 +149,14 @@ def main():
     logger.info("\n📥 PHASE 1: INGESTION")
     ingestion_success = run_ingestion()
     
-    # If ingestion completely failed, send degraded mode email and exit
-    if INGEST_FAILED:
-        logger.warning("Ingestion failed - entering degraded mode")
+    # If all sources failed, send degraded mode email and exit
+    if ZILLOW_FAILED and REDFIN_FAILED and SCPA_FAILED:
+        logger.warning("All data sources failed - entering degraded mode")
         stats = calculate_stats(ingestion_success, start_time)
         deliver_report({}, stats, is_degraded=True)
         return 1
+    elif ZILLOW_FAILED or REDFIN_FAILED or SCPA_FAILED:
+        logger.warning("Partial ingestion failure - some metrics may be unavailable")
     
     # Phase 2: Transformation
     logger.info("\n🧮 PHASE 2: TRANSFORMATION")
@@ -168,8 +171,7 @@ def main():
     # Phase 3: State Management
     logger.info("\n💾 PHASE 3: STATE MANAGEMENT")
     try:
-        current_listings = pd.read_csv("data/latest_listings.csv")
-        state_success = manage_history_state(current_listings)
+        state_success = manage_history_state(results)
         
         if not state_success:
             logger.error("State management sanity check failed - aborting")

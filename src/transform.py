@@ -1,12 +1,13 @@
 """
-Sarasota Market Pulse — Transformation Logic ("Alpha" Processor)
+Sarasota Market Pulse — Transformation Logic (V4 "Market Strategist")
 
-This module calculates 5 key investment signals:
-1. Price Cut Velocity - Panic selling detection
-2. Stale Hunter - Overpriced, stubborn listings
-3. 0.8% Cash Flow Screen - Rental yield proxy
-4. Short Hold Flip Detector - Recent purchase + re-list
-5. Appraisal Gap - County value vs. MLS list price
+V4 Changes:
+- Replaced listing-level metrics with market-level analytics
+- Metric 1: Price Pressure Index (Redfin median price + sale-to-list ratio)
+- Metric 2: Inventory & Absorption (Redfin weeks of supply + new/sold ratio)
+- Metric 3: Cash Flow Zone Finder (Zillow ZORI ÷ ZHVI by zip)
+- Metric 4: Short Hold Flip Detector (SCPA sales, unchanged)
+- Metric 5: Appraisal Gap (Zillow ZHVI vs county JUST by zip)
 
 Uses address normalization for fuzzy matching between MLS and county data.
 """
@@ -61,151 +62,136 @@ def normalize_address(addr: str) -> str:
     return addr
 
 
-def estimate_rent(sqft: float) -> float:
+def metric_price_pressure_index(redfin_dir: Path) -> pd.DataFrame:
     """
-    Estimate monthly rent based on Sarasota market rates.
+    Metric 1: Price Pressure Index
     
-    Uses tiered $/sqft rates based on property size. Smaller units
-    command higher per-sqft rents due to demand and lower total cost.
+    Tracks median sale price + sale-to-list ratio trends over 4 weeks.
+    Compares current year vs prior year lines.
     
-    Args:
-        sqft: Living square footage
+    Signal:
+    - Median price trending down + sale-to-list < 1.0 = buyers have leverage
+    - Sale-to-list > 1.0 = bidding wars, sellers in control
+    
+    Returns:
+        DataFrame with columns: week, median_price, price_delta, sale_to_list, signal
+    """
+    logger.info("Calculating Metric 1: Price Pressure Index...")
+    
+    try:
+        median_price_df = pd.read_csv(redfin_dir / "median_sale_price.csv")
+        sale_to_list_df = pd.read_csv(redfin_dir / "avg_sale_to_list.csv")
         
-    Returns:
-        Estimated monthly rent in dollars
-    """
-    if pd.isna(sqft) or sqft <= 0:
-        return 0
-    
-    if sqft < 1000:
-        rate = 2.00  # Small units command premium
-    elif sqft <= 1800:
-        rate = 1.65  # Core Sarasota SFR range
-    else:
-        rate = 1.35  # Larger homes have diminishing returns
-    
-    return sqft * rate
+        # TODO: Parse Tableau crosstab format and calculate WoW trends
+        # Expected columns from Tableau: Date, Median Sale Price (current year), Median Sale Price (prior year)
+        
+        # Placeholder until Redfin data structure is known
+        result = pd.DataFrame(columns=['week', 'median_price', 'price_delta', 'sale_to_list', 'signal'])
+        logger.info(f"Calculated {len(result)} weeks of price pressure data")
+        return result
+        
+    except FileNotFoundError as e:
+        logger.warning(f"Redfin data not found - skipping price pressure analysis: {e}")
+        return pd.DataFrame()
 
 
-def metric_price_cut_velocity(listings_df: pd.DataFrame, history_df: pd.DataFrame) -> pd.DataFrame:
+def metric_inventory_absorption(redfin_dir: Path) -> pd.DataFrame:
     """
-    Metric 1: Price Cut Velocity
+    Metric 2: Inventory & Absorption
     
-    Flags properties with significant price drops in early listing period.
-    Indicates panic selling or motivated seller.
+    Tracks weeks of supply trend + new listings vs homes sold ratio.
     
-    Criteria:
-    - Price drop > $10,000
-    - Days on market < 14
+    Signal:
+    - Weeks of supply rising = market shifting toward buyers
+    - Above ~18 weeks = clear buyer's market
+    - New listings > homes sold for 3+ weeks = supply piling up
     
     Returns:
-        DataFrame of flagged properties
+        DataFrame with columns: week, weeks_of_supply, new_listings, homes_sold, market_state
     """
-    logger.info("Calculating Metric 1: Price Cut Velocity...")
+    logger.info("Calculating Metric 2: Inventory & Absorption...")
     
-    if history_df is None or len(history_df) == 0:
-        logger.info("No history data available - skipping price cut analysis")
+    try:
+        supply_df = pd.read_csv(redfin_dir / "weeks_of_supply.csv")
+        listings_df = pd.read_csv(redfin_dir / "new_listings.csv")
+        sold_df = pd.read_csv(redfin_dir / "homes_sold.csv")
+        
+        # TODO: Parse Tableau crosstab format and calculate absorption ratio
+        
+        # Placeholder until Redfin data structure is known
+        result = pd.DataFrame(columns=['week', 'weeks_of_supply', 'new_listings', 'homes_sold', 'market_state'])
+        logger.info(f"Calculated {len(result)} weeks of inventory data")
+        return result
+        
+    except FileNotFoundError as e:
+        logger.warning(f"Redfin data not found - skipping inventory analysis: {e}")
         return pd.DataFrame()
-    
-    # Merge on property_url or address (whichever is available as unique ID)
-    # homeharvest typically includes 'property_url' as a stable identifier
-    id_col = 'property_url' if 'property_url' in listings_df.columns else 'address'
-    
-    if id_col not in listings_df.columns or id_col not in history_df.columns:
-        logger.warning(f"ID column '{id_col}' not found - skipping price cut analysis")
-        return pd.DataFrame()
-    
-    merged = listings_df.merge(
-        history_df[[id_col, 'list_price']],
-        on=id_col,
-        how='inner',
-        suffixes=('_today', '_yesterday')
-    )
-    
-    merged['price_delta'] = merged['list_price_today'] - merged['list_price_yesterday']
-    
-    # Get days_on_market column (may be 'days_on_mls' or 'days_on_market')
-    dom_col = 'days_on_mls' if 'days_on_mls' in merged.columns else 'days_on_market'
-    
-    if dom_col not in merged.columns:
-        logger.warning("Days on market column not found - skipping velocity check")
-        return pd.DataFrame()
-    
-    flagged = merged[
-        (merged['price_delta'] < -10000) &
-        (merged[dom_col] < 14)
-    ].copy()
-    
-    logger.info(f"Found {len(flagged)} panic sellers (price cut velocity)")
-    return flagged
 
 
-def metric_stale_hunter(listings_df: pd.DataFrame) -> pd.DataFrame:
+def metric_cash_flow_zones(zillow_zhvi_path: Path, zillow_zori_path: Path) -> pd.DataFrame:
     """
-    Metric 2: Stale Hunter
+    Metric 3: Cash Flow Zone Finder (UPGRADED)
     
-    Identifies overpriced listings that have sat for 90+ days with no price changes.
-    These sellers are stubborn but may be getting desperate.
-    
-    Criteria:
-    - Days on market > 90
-    - No price changes (if data available)
+    Calculates rent/value ratio for each Sarasota zip code using real Zillow data.
+    Ranks zips from best to worst cash flow potential.
     
     Returns:
-        DataFrame of flagged properties
+        DataFrame with columns: zip_code, zhvi, zori, cash_flow_ratio, rank
     """
-    logger.info("Calculating Metric 2: Stale Hunter...")
+    logger.info("Calculating Metric 3: Cash Flow Zone Finder...")
     
-    dom_col = 'days_on_mls' if 'days_on_mls' in listings_df.columns else 'days_on_market'
-    
-    if dom_col not in listings_df.columns:
-        logger.warning("Days on market column not found - skipping stale analysis")
+    try:
+        zhvi_df = pd.read_csv(zillow_zhvi_path)
+        zori_df = pd.read_csv(zillow_zori_path)
+        
+        # Get the most recent month's data (last date column)
+        date_cols_zhvi = [col for col in zhvi_df.columns if re.match(r'\d{4}-\d{2}-\d{2}', col)]
+        date_cols_zori = [col for col in zori_df.columns if re.match(r'\d{4}-\d{2}-\d{2}', col)]
+        
+        if not date_cols_zhvi or not date_cols_zori:
+            logger.warning("No date columns found in Zillow data")
+            return pd.DataFrame()
+        
+        latest_zhvi_col = sorted(date_cols_zhvi)[-1]
+        latest_zori_col = sorted(date_cols_zori)[-1]
+        
+        # Extract zip, value, rent for each zip
+        zhvi_clean = zhvi_df[['RegionName', latest_zhvi_col]].copy()
+        zhvi_clean.columns = ['zip_code', 'zhvi']
+        
+        zori_clean = zori_df[['RegionName', latest_zori_col]].copy()
+        zori_clean.columns = ['zip_code', 'zori']
+        
+        # Merge
+        result = zhvi_clean.merge(zori_clean, on='zip_code', how='inner')
+        
+        # Calculate cash flow ratio (monthly rent / home value)
+        result['cash_flow_ratio'] = result['zori'] / result['zhvi']
+        
+        # Rank by ratio (higher = better cash flow)
+        result['rank'] = result['cash_flow_ratio'].rank(ascending=False).astype(int)
+        result = result.sort_values('rank')
+        
+        logger.info(f"Ranked {len(result)} Sarasota zip codes by cash flow potential")
+        return result
+        
+    except FileNotFoundError as e:
+        logger.warning(f"Zillow data not found - skipping cash flow analysis: {e}")
         return pd.DataFrame()
-    
-    flagged = listings_df[listings_df[dom_col] > 90].copy()
-    
-    logger.info(f"Found {len(flagged)} stale listings (90+ days)")
-    return flagged
-
-
-def metric_cash_flow_screen(listings_df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Metric 3: 0.8% Cash Flow Screen
-    
-    Identifies properties meeting the 0.8% rule: monthly rent / list price >= 0.008
-    Note: This is NOT the classic "1% rule" - that's unrealistic in Sarasota.
-    
-    Returns:
-        DataFrame of properties passing cash flow screen
-    """
-    logger.info("Calculating Metric 3: 0.8% Cash Flow Screen...")
-    
-    # Estimate rent based on square footage
-    sqft_col = 'sqft' if 'sqft' in listings_df.columns else 'lot_sqft'
-    
-    if sqft_col not in listings_df.columns:
-        logger.warning("Square footage column not found - skipping cash flow analysis")
+    except Exception as e:
+        logger.error(f"Error calculating cash flow zones: {e}")
         return pd.DataFrame()
-    
-    df = listings_df.copy()
-    df['estimated_rent'] = df[sqft_col].apply(estimate_rent)
-    df['cash_flow_ratio'] = df['estimated_rent'] / df['list_price']
-    
-    flagged = df[df['cash_flow_ratio'] >= 0.008].copy()
-    
-    logger.info(f"Found {len(flagged)} properties passing 0.8% cash flow screen")
-    return flagged
 
 
-def metric_flip_detector(listings_df: pd.DataFrame, sales_df: pd.DataFrame, parcels_df: pd.DataFrame) -> pd.DataFrame:
+def metric_flip_detector(sales_df: pd.DataFrame, parcels_df: pd.DataFrame) -> pd.DataFrame:
     """
-    Metric 4: Short Hold Flip Detector
+    Metric 4: Short Hold Flip Detector (UNCHANGED from V3)
     
-    Matches MLS listings against recent county sales (4-12 months ago).
+    Identifies properties with 4-12 month hold periods in SCPA sales data.
     Indicates probable flips - check renovation quality vs. markup.
     
     Returns:
-        DataFrame of flagged properties with recent sales
+        DataFrame of flagged properties with recent repeat sales
     """
     logger.info("Calculating Metric 4: Short Hold Flip Detector...")
     
@@ -213,140 +199,120 @@ def metric_flip_detector(listings_df: pd.DataFrame, sales_df: pd.DataFrame, parc
         logger.warning("No sales data available - skipping flip detection")
         return pd.DataFrame()
     
-    # Build normalized addresses for county parcels
-    parcels_df = parcels_df.copy()
-    parcels_df['county_address'] = (
-        parcels_df['LOCN'].astype(str) + ' ' +
-        parcels_df['LOCS'].astype(str) + ' ' +
-        parcels_df['LOCD'].astype(str)
-    )
-    parcels_df['county_address_norm'] = parcels_df['county_address'].apply(normalize_address)
-    
-    # Join sales with parcels to get addresses
-    sales_with_addr = sales_df.merge(
-        parcels_df[['ACCOUNT', 'county_address_norm']],
-        left_on='Account',
-        right_on='ACCOUNT',
-        how='inner'
-    )
-    
-    # Normalize MLS addresses
-    addr_col = 'address' if 'address' in listings_df.columns else 'street'
-    if addr_col not in listings_df.columns:
-        logger.warning("Address column not found in listings - skipping flip detection")
+    try:
+        # Parse sale dates
+        sales_df = sales_df.copy()
+        sales_df['SaleDate'] = pd.to_datetime(sales_df['SaleDate'], errors='coerce')
+        
+        # Group by account to find repeat sales
+        flips = []
+        for account, group in sales_df.groupby('Account'):
+            group = group.sort_values('SaleDate')
+            
+            for i in range(len(group) - 1):
+                sale1 = group.iloc[i]
+                sale2 = group.iloc[i + 1]
+                
+                days_held = (sale2['SaleDate'] - sale1['SaleDate']).days
+                
+                # Flag if held 4-12 months
+                if 120 <= days_held <= 365:
+                    flips.append({
+                        'account': account,
+                        'first_sale_date': sale1['SaleDate'],
+                        'first_sale_price': sale1['SalePrice'],
+                        'second_sale_date': sale2['SaleDate'],
+                        'second_sale_price': sale2['SalePrice'],
+                        'days_held': days_held,
+                        'markup': sale2['SalePrice'] - sale1['SalePrice'],
+                        'markup_pct': (sale2['SalePrice'] - sale1['SalePrice']) / sale1['SalePrice']
+                    })
+        
+        result = pd.DataFrame(flips)
+        logger.info(f"Found {len(result)} probable flips (4-12 month holds)")
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error in flip detection: {e}")
         return pd.DataFrame()
-    
-    listings_df = listings_df.copy()
-    listings_df['mls_address_norm'] = listings_df[addr_col].apply(normalize_address)
-    
-    # Parse sale dates
-    sales_with_addr['SaleDate'] = pd.to_datetime(sales_with_addr['SaleDate'], errors='coerce')
-    
-    # Filter to sales 4-12 months ago
-    today = datetime.now()
-    cutoff_recent = today - timedelta(days=120)  # 4 months
-    cutoff_old = today - timedelta(days=365)  # 12 months
-    
-    recent_sales = sales_with_addr[
-        (sales_with_addr['SaleDate'] >= cutoff_old) &
-        (sales_with_addr['SaleDate'] <= cutoff_recent)
-    ]
-    
-    # Match MLS listings to recent sales
-    flagged = listings_df.merge(
-        recent_sales[['county_address_norm', 'SaleDate', 'SalePrice']],
-        left_on='mls_address_norm',
-        right_on='county_address_norm',
-        how='inner'
-    )
-    
-    logger.info(f"Found {len(flagged)} probable flips (4-12 month holds)")
-    return flagged
 
 
-def metric_appraisal_gap(listings_df: pd.DataFrame, parcels_df: pd.DataFrame) -> pd.DataFrame:
+def metric_appraisal_gap(zillow_zhvi_path: Path, parcels_df: pd.DataFrame) -> pd.DataFrame:
     """
-    Metric 5: Appraisal Gap
+    Metric 5: Appraisal Gap (UPDATED for V4)
     
-    Compares MLS list price against county appraised value (JUST field).
+    Compares Zillow ZHVI (market home values) vs county JUST (assessed values) by zip code.
     
-    Flags:
-    - Overpriced: Listed 20%+ above appraisal (likely to need price cuts)
-    - Underpriced: Listed 5%+ below appraisal (panic seller or estate sale)
+    Signal:
+    - ZHVI > JUST by 15%+ = market running hot vs assessments
+    - ZHVI at or below JUST = market cooling toward assessed values
     
     Returns:
-        DataFrame with gap calculations and flags
+        DataFrame with columns: zip_code, zhvi, avg_just, gap_pct, flag
     """
     logger.info("Calculating Metric 5: Appraisal Gap...")
     
-    # Build normalized county addresses
-    parcels_df = parcels_df.copy()
-    parcels_df['county_address'] = (
-        parcels_df['LOCN'].astype(str) + ' ' +
-        parcels_df['LOCS'].astype(str) + ' ' +
-        parcels_df['LOCD'].astype(str)
-    )
-    parcels_df['county_address_norm'] = parcels_df['county_address'].apply(normalize_address)
-    
-    # Normalize MLS addresses
-    addr_col = 'address' if 'address' in listings_df.columns else 'street'
-    if addr_col not in listings_df.columns:
-        logger.warning("Address column not found - skipping appraisal gap analysis")
+    try:
+        zhvi_df = pd.read_csv(zillow_zhvi_path)
+        
+        # Get most recent ZHVI
+        date_cols = [col for col in zhvi_df.columns if re.match(r'\d{4}-\d{2}-\d{2}', col)]
+        if not date_cols:
+            logger.warning("No date columns in ZHVI data")
+            return pd.DataFrame()
+        
+        latest_col = sorted(date_cols)[-1]
+        zhvi_clean = zhvi_df[['RegionName', latest_col]].copy()
+        zhvi_clean.columns = ['zip_code', 'zhvi']
+        
+        # Calculate average JUST by zip from county parcels
+        parcels_df = parcels_df.copy()
+        parcels_df['JUST'] = pd.to_numeric(parcels_df['JUST'], errors='coerce')
+        
+        county_avg = parcels_df.groupby('LOCZIP')['JUST'].mean().reset_index()
+        county_avg.columns = ['zip_code', 'avg_just']
+        county_avg['zip_code'] = pd.to_numeric(county_avg['zip_code'], errors='coerce')
+        
+        # Merge
+        result = zhvi_clean.merge(county_avg, on='zip_code', how='inner')
+        
+        # Calculate gap
+        result['gap_pct'] = (result['zhvi'] - result['avg_just']) / result['avg_just']
+        
+        # Flag significant gaps
+        result['flag'] = ''
+        result.loc[result['gap_pct'] > 0.15, 'flag'] = 'HOT_MARKET'
+        result.loc[result['gap_pct'] <= 0, 'flag'] = 'COOLING'
+        
+        result = result[result['flag'] != '']
+        logger.info(f"Found {len(result)} zip codes with significant appraisal gaps")
+        return result
+        
+    except FileNotFoundError as e:
+        logger.warning(f"Data not found - skipping appraisal gap analysis: {e}")
         return pd.DataFrame()
-    
-    listings_df = listings_df.copy()
-    listings_df['mls_address_norm'] = listings_df[addr_col].apply(normalize_address)
-    
-    # Join MLS with county appraisal values
-    merged = listings_df.merge(
-        parcels_df[['county_address_norm', 'JUST']],
-        left_on='mls_address_norm',
-        right_on='county_address_norm',
-        how='inner'
-    )
-    
-    # Calculate gap
-    merged['appraisal_gap'] = (merged['list_price'] - merged['JUST']) / merged['JUST']
-    
-    # Flag overpriced and underpriced
-    merged['gap_flag'] = ''
-    merged.loc[merged['appraisal_gap'] > 0.20, 'gap_flag'] = 'OVERPRICED'
-    merged.loc[merged['appraisal_gap'] < -0.05, 'gap_flag'] = 'UNDERPRICED'
-    
-    flagged = merged[merged['gap_flag'] != ''].copy()
-    
-    logger.info(f"Found {len(flagged)} properties with significant appraisal gaps")
-    return flagged
+    except Exception as e:
+        logger.error(f"Error calculating appraisal gap: {e}")
+        return pd.DataFrame()
 
 
 def run_transformation() -> dict:
     """
-    Execute all transformation metrics.
+    Execute all transformation metrics for V4.
     
     Returns:
         dict: Results keyed by metric name
     """
     logger.info("=" * 60)
-    logger.info("STARTING TRANSFORMATION (ALPHA PROCESSOR)")
+    logger.info("STARTING TRANSFORMATION (V4 MARKET STRATEGIST)")
     logger.info("=" * 60)
     
     results = {}
     
     # Load input data
-    try:
-        listings_df = pd.read_csv("data/latest_listings.csv")
-        logger.info(f"Loaded {len(listings_df)} current listings")
-    except FileNotFoundError:
-        logger.error("latest_listings.csv not found - ingestion may have failed")
-        return results
-    
-    # Load history (may not exist on first run)
-    try:
-        history_df = pd.read_csv("data/history.csv")
-        logger.info(f"Loaded {len(history_df)} historical listings")
-    except FileNotFoundError:
-        logger.info("No history file found - this may be the first run")
-        history_df = pd.DataFrame()
+    redfin_dir = Path("data/redfin")
+    zillow_zhvi_path = Path("data/zillow_zhvi.csv")
+    zillow_zori_path = Path("data/zillow_zori.csv")
     
     # Load county data
     try:
@@ -359,11 +325,11 @@ def run_transformation() -> dict:
         sales_df = pd.DataFrame()
     
     # Run metrics
-    results['price_cut_velocity'] = metric_price_cut_velocity(listings_df, history_df)
-    results['stale_hunter'] = metric_stale_hunter(listings_df)
-    results['cash_flow_screen'] = metric_cash_flow_screen(listings_df)
-    results['flip_detector'] = metric_flip_detector(listings_df, sales_df, parcels_df)
-    results['appraisal_gap'] = metric_appraisal_gap(listings_df, parcels_df)
+    results['price_pressure'] = metric_price_pressure_index(redfin_dir)
+    results['inventory_absorption'] = metric_inventory_absorption(redfin_dir)
+    results['cash_flow_zones'] = metric_cash_flow_zones(zillow_zhvi_path, zillow_zori_path)
+    results['flip_detector'] = metric_flip_detector(sales_df, parcels_df)
+    results['appraisal_gap'] = metric_appraisal_gap(zillow_zhvi_path, parcels_df)
     
     logger.info("✅ Transformation complete")
     return results
@@ -374,7 +340,7 @@ if __name__ == "__main__":
     
     # Print summary
     print("\n" + "=" * 60)
-    print("TRANSFORMATION RESULTS SUMMARY")
+    print("TRANSFORMATION RESULTS SUMMARY (V4)")
     print("=" * 60)
     for metric_name, df in results.items():
-        print(f"{metric_name}: {len(df)} properties flagged")
+        print(f"{metric_name}: {len(df)} records")

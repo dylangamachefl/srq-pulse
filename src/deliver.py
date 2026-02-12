@@ -1,8 +1,8 @@
 """
-Sarasota Market Pulse — Email Delivery System
+Sarasota Market Pulse — Email Delivery System (V4)
 
-Renders HTML email reports using Jinja2 templates and sends via Resend API.
-Includes both normal mode (full market report) and degraded mode (error notification).
+Renders HTML email reports using Jinja2 templates and sends via Gmail SMTP.
+V4 Changes: Weekly market intelligence format with market-level analytics.
 """
 
 import os
@@ -23,12 +23,12 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-# HTML Email Template
+# HTML Email Template (V4 - Weekly Market Intelligence)
 EMAIL_TEMPLATE = """
 <!DOCTYPE html>
 <html>
 <head>
-    <meta charset="utf-8">
+ <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
         body {
@@ -129,19 +129,30 @@ EMAIL_TEMPLATE = """
             background-color: #f8d7da;
             color: #721c24;
         }
+        .degraded-alert {
+            background-color: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .degraded-alert h2 {
+            margin-top: 0;
+            color: #856404;
+        }
     </style>
 </head>
 <body>
     <div class="header">
-        <h1>🏡 Sarasota Market Pulse</h1>
-        <p>{{ date }}</p>
+        <h1>🏡 SRQ Pulse</h1>
+        <p>Week of {{ date }}</p>
     </div>
     
     <div class="content">
         {% if is_degraded %}
-        <div style="background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 20px; margin: 20px 0; border-radius: 4px;">
-            <h2 style="margin-top: 0; color: #856404;">⚠️ Pipeline Degraded</h2>
-            <p>The data ingestion pipeline encountered errors. Some or all data may be unavailable for today's report.</p>
+        <div class="degraded-alert">
+            <h2>⚠️ Pipeline Degraded</h2>
+            <p>The data ingestion pipeline encountered errors. Some or all data may be unavailable for this week's report.</p>
             <div style="background-color: #fff; padding: 15px; border-radius: 4px; margin-top: 15px; font-family: monospace; font-size: 12px;">
                 {{ error_log }}
             </div>
@@ -149,153 +160,160 @@ EMAIL_TEMPLATE = """
         {% else %}
         
         <div class="metric-section">
-            <h2>🔥 Panic Sellers (Price Cut Velocity)</h2>
-            <p>Properties with significant price drops (&gt;$10k) within first 14 days on market.</p>
-            {% if panic_sellers|length > 0 %}
+            <h2>📉 Price Pressure Index</h2>
+            <p>Median sale price + sale-to-list ratio trends (last 4 weeks).</p>
+            {% if price_pressure|length > 0 %}
             <table>
                 <thead>
                     <tr>
-                        <th>Address</th>
-                        <th>List Price</th>
-                        <th>Price Drop</th>
-                        <th>Days on Market</th>
+                        <th>Week</th>
+                        <th>Median Price</th>
+                        <th>WoW Δ</th>
+                        <th>Sale-to-List</th>
+                        <th>Signal</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% for property in panic_sellers %}
+                    {% for row in price_pressure %}
                     <tr>
-                        <td>{{ property.address }}</td>
-                        <td>${{ "{:,.0f}".format(property.list_price_today) }}</td>
-                        <td><span class="badge badge-danger">${{ "{:,.0f}".format(property.price_delta|abs) }}</span></td>
-                        <td>{{ property.days_on_market }} days</td>
+                        <td>{{ row.week }}</td>
+                        <td>${{ "{:,.0f}".format(row.median_price) if row.median_price else 'N/A' }}</td>
+                        <td>{{ "{:+.1%}".format(row.price_delta) if row.price_delta else 'N/A' }}</td>
+                        <td>{{ "{:.2%}".format(row.sale_to_list) if row.sale_to_list else 'N/A' }}</td>
+                        <td>{{ row.signal }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
             {% else %}
-            <div class="no-data">No panic sellers detected today.</div>
+            <div class="no-data">Data unavailable this week (Redfin source failed or not yet configured)</div>
             {% endif %}
         </div>
         
         <div class="metric-section">
-            <h2>🏚️ Stale Listings</h2>
-            <p>Properties sitting for 90+ days - potentially overpriced and ripe for negotiation.</p>
-            {% if stale_listings|length > 0 %}
+            <h2>📦 Inventory & Absorption</h2>
+            <p>Weeks of supply + new listings vs homes sold (last 4 weeks).</p>
+            {% if inventory|length > 0 %}
             <table>
                 <thead>
                     <tr>
-                        <th>Address</th>
-                        <th>List Price</th>
-                        <th>Days on Market</th>
+                        <th>Week</th>
+                        <th>Weeks of Supply</th>
+                        <th>New Listings</th>
+                        <th>Homes Sold</th>
+                        <th>Market State</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% for property in stale_listings[:10] %}
+                    {% for row in inventory %}
                     <tr>
-                        <td>{{ property.address }}</td>
-                        <td>${{ "{:,.0f}".format(property.list_price) }}</td>
-                        <td><span class="badge badge-warning">{{ property.days_on_market }} days</span></td>
+                        <td>{{ row.week }}</td>
+                        <td>{{ "{:.1f}".format(row.weeks_of_supply) if row.weeks_of_supply else 'N/A' }}</td>
+                        <td>{{ "{:,.0f}".format(row.new_listings) if row.new_listings else 'N/A' }}</td>
+                        <td>{{ "{:,.0f}".format(row.homes_sold) if row.homes_sold else 'N/A' }}</td>
+                        <td>{{ row.market_state }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
-            {% if stale_listings|length > 10 %}
-            <p style="color: #666; font-size: 13px; margin-top: 10px;">
-                Showing top 10 of {{ stale_listings|length }} total stale listings.
-            </p>
-            {% endif %}
             {% else %}
-            <div class="no-data">No stale listings found.</div>
+            <div class="no-data">Data unavailable this week (Redfin source failed or not yet configured)</div>
             {% endif %}
         </div>
         
         <div class="metric-section">
-            <h2>💰 Cash Flow Picks (0.8% Rule)</h2>
-            <p>Properties meeting the 0.8% monthly rent-to-price ratio for positive cash flow.</p>
-            {% if cash_flow|length > 0 %}
+            <h2>💰 Cash Flow Zones</h2>
+            <p>Sarasota zip codes ranked by monthly rent / home value ratio.</p>
+            {% if cash_flow_zones|length > 0 %}
             <table>
                 <thead>
                     <tr>
-                        <th>Address</th>
-                        <th>List Price</th>
-                        <th>Est. Rent</th>
-                        <th>CF Ratio</th>
+                        <th>Rank</th>
+                        <th>Zip Code</th>
+                        <th>ZHVI (Home Value)</th>
+                        <th>ZORI (Rent)</th>
+                        <th>Cash Flow Ratio</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% for property in cash_flow[:10] %}
+                    {% for row in cash_flow_zones %}
                     <tr>
-                        <td>{{ property.address }}</td>
-                        <td>${{ "{:,.0f}".format(property.list_price) }}</td>
-                        <td>${{ "{:,.0f}".format(property.estimated_rent) }}/mo</td>
-                        <td><span class="badge badge-success">{{ "{:.2%}".format(property.cash_flow_ratio) }}</span></td>
+                        <td>{{ row.rank }}</td>
+                        <td>{{ row.zip_code }}</td>
+                        <td>${{ "{:,.0f}".format(row.zhvi) }}</td>
+                        <td>${{ "{:,.0f}".format(row.zori) }}/mo</td>
+                        <td><span class="badge badge-success">{{ "{:.3%}".format(row.cash_flow_ratio) }}</span></td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
-            {% if cash_flow|length > 10 %}
-            <p style="color: #666; font-size: 13px; margin-top: 10px;">
-                Showing top 10 of {{ cash_flow|length }} total cash flow opportunities.
-            </p>
-            {% endif %}
             {% else %}
-            <div class="no-data">No properties passing the 0.8% cash flow screen today.</div>
+            <div class="no-data">Data unavailable this week (Zillow source failed)</div>
             {% endif %}
         </div>
         
         <div class="metric-section">
-            <h2>🔄 Probable Flips</h2>
-            <p>Properties purchased 4-12 months ago and now re-listed - inspect renovation quality.</p>
+            <h2>🔄 Flip Activity</h2>
+            <p>Properties with 4-12 month hold periods (short hold flips).</p>
             {% if flips|length > 0 %}
             <table>
                 <thead>
                     <tr>
-                        <th>Address</th>
-                        <th>List Price</th>
-                        <th>Sale Date</th>
-                        <th>Sale Price</th>
+                        <th>Account</th>
+                        <th>First Sale Date</th>
+                        <th>First Sale Price</th>
+                        <th>Second Sale Date</th>
+                        <th>Second Sale Price</th>
+                        <th>Days Held</th>
+                        <th>Markup</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% for property in flips %}
+                    {% for row in flips[:10] %}
                     <tr>
-                        <td>{{ property.address }}</td>
-                        <td>${{ "{:,.0f}".format(property.list_price) }}</td>
-                        <td>{{ property.SaleDate.strftime('%Y-%m-%d') if property.SaleDate else 'N/A' }}</td>
-                        <td>${{ "{:,.0f}".format(property.SalePrice) if property.SalePrice else 'N/A' }}</td>
+                        <td>{{ row.account }}</td>
+                        <td>{{ row.first_sale_date.strftime('%Y-%m-%d') if row.first_sale_date else 'N/A' }}</td>
+                        <td>${{ "{:,.0f}".format(row.first_sale_price) if row.first_sale_price else 'N/A' }}</td>
+                        <td>{{ row.second_sale_date.strftime('%Y-%m-%d') if row.second_sale_date else 'N/A' }}</td>
+                        <td>${{ "{:,.0f}".format(row.second_sale_price) if row.second_sale_price else 'N/A' }}</td>
+                        <td>{{ row.days_held }}</td>
+                        <td><span class="badge badge-warning">{{ "{:+.1%}".format(row.markup_pct) if row.markup_pct else 'N/A' }}</span></td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
+            {% if flips|length > 10 %}
+            <p style="color: #666; font-size: 13px;">Showing top 10 of {{ flips|length }} total flips.</p>
+            {% endif %}
             {% else %}
-            <div class="no-data">No probable flips detected today.</div>
+            <div class="no-data">Data unavailable this week (SCPA county data failed) or no flips detected</div>
             {% endif %}
         </div>
         
         <div class="metric-section">
-            <h2>📊 Appraisal Gaps</h2>
-            <p>Properties with significant deviation from county appraised values.</p>
-            {% if appraisal_gaps|length > 0 %}
+            <h2>📊 Appraisal vs Market Gap</h2>
+            <p>Zip codes where ZHVI market values diverge from county assessments.</p>
+            {% if appraisal_gap|length > 0 %}
             <table>
                 <thead>
                     <tr>
-                        <th>Address</th>
-                        <th>List Price</th>
-                        <th>County Value</th>
+                        <th>Zip Code</th>
+                        <th>ZHVI (Market)</th>
+                        <th>Avg County Value</th>
                         <th>Gap</th>
                         <th>Flag</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% for property in appraisal_gaps %}
+                    {% for row in appraisal_gap %}
                     <tr>
-                        <td>{{ property.address }}</td>
-                        <td>${{ "{:,.0f}".format(property.list_price) }}</td>
-                        <td>${{ "{:,.0f}".format(property.JUST) }}</td>
-                        <td>{{ "{:+.1%}".format(property.appraisal_gap) }}</td>
+                        <td>{{ row.zip_code }}</td>
+                        <td>${{ "{:,.0f}".format(row.zhvi) }}</td>
+                        <td>${{ "{:,.0f}".format(row.avg_just) }}</td>
+                        <td>{{ "{:+.1%}".format(row.gap_pct) }}</td>
                         <td>
-                            <span class="badge {% if property.gap_flag == 'OVERPRICED' %}badge-warning{% else %}badge-success{% endif %}">
-                                {{ property.gap_flag }}
+                            <span class="badge {% if row.flag == 'HOT_MARKET' %}badge-warning{% else %}badge-success{% endif %}">
+                                {{ row.flag }}
                             </span>
                         </td>
                     </tr>
@@ -303,19 +321,21 @@ EMAIL_TEMPLATE = """
                 </tbody>
             </table>
             {% else %}
-            <div class="no-data">No significant appraisal gaps detected.</div>
+            <div class="no-data">Data unavailable this week (Zillow or SCPA failed) or no significant gaps</div>
             {% endif %}
         </div>
         
         {% endif %}
         
         <div class="footer">
-            <strong>Pipeline Health:</strong><br>
-            Records Ingested: {{ stats.records_ingested }}<br>
-            County Data: {{ "✅ Available" if stats.county_available else "❌ Unavailable" }}<br>
+            <strong>⚙️ Pipeline Health:</strong><br>
+            {% if stats.zillow_status %}<span class="{{ 'badge-success' if stats.zillow_status == 'OK' else 'badge-danger' }}">Zillow: {{ stats.zillow_status }}</span> {% endif %}
+            {% if stats.redfin_status %}<span class="{{ 'badge-success' if stats.redfin_status == 'OK' else 'badge-danger' }}">Redfin: {{ stats.redfin_status }}</span> {% endif %}
+            {% if stats.scpa_status %}<span class="{{ 'badge-success' if stats.scpa_status == 'OK' else 'badge-danger' }}">SCPA: {{ stats.scpa_status }}</span> {% endif %}
+            <br>
             Execution Time: {{ stats.execution_time }}<br>
             <br>
-            <em>This report is generated automatically by a serverless ELT pipeline. Data sourced from public MLS feeds and Sarasota County Property Appraiser records.</em>
+            <em>This report is generated automatically every Monday by a serverless ETL pipeline. Data sourced from Redfin Data Center, Zillow Research, and Sarasota County Property Appraiser.</em>
         </div>
     </div>
 </body>
@@ -325,7 +345,7 @@ EMAIL_TEMPLATE = """
 
 def render_email(results: dict, stats: dict, is_degraded: bool = False, error_log: str = "") -> str:
     """
-    Render HTML email from transformation results.
+    Render HTML email from transformation results (V4).
     
     Args:
         results: Dict of DataFrames from transform.py
@@ -348,11 +368,11 @@ def render_email(results: dict, stats: dict, is_degraded: bool = False, error_lo
         date=datetime.now().strftime("%B %d, %Y"),
         is_degraded=is_degraded,
         error_log=error_log,
-        panic_sellers=df_to_list(results.get('price_cut_velocity', pd.DataFrame())),
-        stale_listings=df_to_list(results.get('stale_hunter', pd.DataFrame())),
-        cash_flow=df_to_list(results.get('cash_flow_screen', pd.DataFrame())),
+        price_pressure=df_to_list(results.get('price_pressure', pd.DataFrame())),
+        inventory=df_to_list(results.get('inventory_absorption', pd.DataFrame())),
+        cash_flow_zones=df_to_list(results.get('cash_flow_zones', pd.DataFrame())),
         flips=df_to_list(results.get('flip_detector', pd.DataFrame())),
-        appraisal_gaps=df_to_list(results.get('appraisal_gap', pd.DataFrame())),
+        appraisal_gap=df_to_list(results.get('appraisal_gap', pd.DataFrame())),
         stats=stats
     )
     
@@ -417,7 +437,7 @@ def send_email(html_content: str, subject: str) -> bool:
 
 def deliver_report(results: dict, stats: dict, is_degraded: bool = False):
     """
-    Render and send the market pulse report.
+    Render and send the weekly market pulse report (V4).
     
     Args:
         results: Transformation results
@@ -425,7 +445,7 @@ def deliver_report(results: dict, stats: dict, is_degraded: bool = False):
         is_degraded: Whether pipeline is in degraded mode
     """
     logger.info("=" * 60)
-    logger.info("STARTING EMAIL DELIVERY")
+    logger.info("STARTING EMAIL DELIVERY (V4 WEEKLY FORMAT)")
     logger.info("=" * 60)
     
     # Load error log if degraded
@@ -439,12 +459,12 @@ def deliver_report(results: dict, stats: dict, is_degraded: bool = False):
     # Render email
     html_content = render_email(results, stats, is_degraded, error_log)
     
-    # Determine subject line
-    today = datetime.now().strftime("%Y-%m-%d")
+    # Determine subject line (V4: weekly format)
+    week_of = datetime.now().strftime("%b %d, %Y")
     if is_degraded:
-        subject = f"⚠️ Sarasota Market Pulse — Pipeline Degraded — {today}"
+        subject = f"⚠️ SRQ Pulse — Pipeline Degraded — Week of {week_of}"
     else:
-        subject = f"🏡 Sarasota Market Pulse — {today}"
+        subject = f"🏡 SRQ Pulse — Week of {week_of}"
     
     # Send email
     success = send_email(html_content, subject)
@@ -460,16 +480,17 @@ def deliver_report(results: dict, stats: dict, is_degraded: bool = False):
 if __name__ == "__main__":
     # Test with mock data
     mock_results = {
-        'price_cut_velocity': pd.DataFrame(),
-        'stale_hunter': pd.DataFrame(),
-        'cash_flow_screen': pd.DataFrame(),
+        'price_pressure': pd.DataFrame(),
+        'inventory_absorption': pd.DataFrame(),
+        'cash_flow_zones': pd.DataFrame(),
         'flip_detector': pd.DataFrame(),
         'appraisal_gap': pd.DataFrame(),
     }
     
     mock_stats = {
-        'records_ingested': 0,
-        'county_available': False,
+        'zillow_status': 'FAILED',
+        'redfin_status': 'FAILED',
+        'scpa_status': 'OK',
         'execution_time': '0s'
     }
     
