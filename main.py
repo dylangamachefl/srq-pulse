@@ -1,0 +1,202 @@
+"""
+Sarasota Market Pulse — Main Orchestrator
+
+Master conductor for the entire ETL pipeline:
+1. Ingestion (MLS + County data)
+2. Transformation (5 investment metrics)
+3. Delivery (Email via Resend)
+
+Includes state management with sanity checks and rolling 3-day history.
+"""
+
+import os
+import sys
+import logging
+from pathlib import Path
+from datetime import datetime, timedelta
+import time
+
+import pandas as pd
+
+# Add src to path for imports
+sys.path.insert(0, str(Path(__file__).parent / "src"))
+
+from ingest import run_ingestion, INGEST_FAILED
+from transform import run_transformation
+from deliver import deliver_report
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+
+def manage_history_state(current_listings_df: pd.DataFrame) -> bool:
+    """
+    Manage rolling 3-day history with sanity checks.
+    
+    This is critical - the history CSV is our "database". A corrupted
+    commit breaks all future runs.
+    
+    Args:
+        current_listings_df: Today's listings
+        
+    Returns:
+        bool: True if state management succeeded
+    """
+    logger.info("Managing history state...")
+    
+    data_dir = Path("data")
+    data_dir.mkdir(exist_ok=True)
+    
+    today = datetime.now().strftime("%Y%m%d")
+    yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y%m%d")
+    two_days_ago = (datetime.now() - timedelta(days=2)).strftime("%Y%m%d")
+    
+    # Paths
+    history_today = data_dir / f"history_{today}.csv"
+    history_yesterday = data_dir / f"history_{yesterday}.csv"
+    history_general = data_dir / "history.csv"
+    
+    # Save today's state
+    current_listings_df.to_csv(history_today, index=False)
+    current_listings_df.to_csv(history_general, index=False)  # Also save as general history
+    logger.info(f"Saved today's listings to {history_today}")
+    
+    # Sanity check: Compare row counts
+    if history_yesterday.exists():
+        yesterday_df = pd.read_csv(history_yesterday)
+        today_count = len(current_listings_df)
+        yesterday_count = len(yesterday_df)
+        
+        # Flag if today's data is less than 50% of yesterday's
+        if today_count < yesterday_count * 0.5:
+            logger.error(
+                f"⚠️  SANITY CHECK FAILED: {today_count} rows today vs {yesterday_count} yesterday. "
+                f"Aborting commit to prevent data corruption."
+            )
+            return False
+        
+        logger.info(f"✅ Sanity check passed: {today_count} rows today vs {yesterday_count} yesterday")
+    else:
+        logger.info("No yesterday history found - likely first run")
+    
+    # Clean up old history files (keep only last 3 days)
+    for old_file in data_dir.glob("history_*.csv"):
+        file_date_str = old_file.stem.replace("history_", "")
+        if len(file_date_str) == 8 and file_date_str.isdigit():
+            try:
+                file_date = datetime.strptime(file_date_str, "%Y%m%d")
+                days_old = (datetime.now() - file_date).days
+                
+                if days_old > 3:
+                    old_file.unlink()
+                    logger.info(f"Cleaned up old history: {old_file.name}")
+            except ValueError:
+                pass
+    
+    return True
+
+
+def calculate_stats(ingestion_success: bool, start_time: float) -> dict:
+    """
+    Calculate pipeline execution statistics.
+    
+    Returns:
+        dict: Stats for email footer
+    """
+    execution_time = time.time() - start_time
+    
+    # Count ingested records
+    records_ingested = 0
+    county_available = False
+    
+    try:
+        listings_df = pd.read_csv("data/latest_listings.csv")
+        records_ingested = len(listings_df)
+    except FileNotFoundError:
+        pass
+    
+    try:
+        parcels_df = pd.read_csv("data/county_parcels.csv")
+        if len(parcels_df) > 0:
+            county_available = True
+    except FileNotFoundError:
+        pass
+    
+    stats = {
+        'records_ingested': records_ingested,
+        'county_available': county_available,
+        'execution_time': f"{execution_time:.1f}s"
+    }
+    
+    return stats
+
+
+def main():
+    """
+    Main pipeline orchestrator.
+    """
+    logger.info("=" * 80)
+    logger.info("SARASOTA MARKET PULSE — ETL PIPELINE")
+    logger.info("=" * 80)
+    
+    start_time = time.time()
+    
+    # Phase 1: Ingestion
+    logger.info("\n📥 PHASE 1: INGESTION")
+    ingestion_success = run_ingestion()
+    
+    # If ingestion completely failed, send degraded mode email and exit
+    if INGEST_FAILED:
+        logger.warning("Ingestion failed - entering degraded mode")
+        stats = calculate_stats(ingestion_success, start_time)
+        deliver_report({}, stats, is_degraded=True)
+        return 1
+    
+    # Phase 2: Transformation
+    logger.info("\n🧮 PHASE 2: TRANSFORMATION")
+    try:
+        results = run_transformation()
+    except Exception as e:
+        logger.error(f"Transformation failed: {type(e).__name__}: {str(e)}")
+        stats = calculate_stats(ingestion_success, start_time)
+        deliver_report({}, stats, is_degraded=True)
+        return 1
+    
+    # Phase 3: State Management
+    logger.info("\n💾 PHASE 3: STATE MANAGEMENT")
+    try:
+        current_listings = pd.read_csv("data/latest_listings.csv")
+        state_success = manage_history_state(current_listings)
+        
+        if not state_success:
+            logger.error("State management sanity check failed - aborting")
+            return 1
+    except Exception as e:
+        logger.error(f"State management failed: {type(e).__name__}: {str(e)}")
+        return 1
+    
+    # Phase 4: Delivery
+    logger.info("\n📧 PHASE 4: DELIVERY")
+    stats = calculate_stats(ingestion_success, start_time)
+    
+    try:
+        deliver_report(results, stats, is_degraded=False)
+    except Exception as e:
+        logger.error(f"Delivery failed: {type(e).__name__}: {str(e)}")
+        return 1
+    
+    # Success
+    logger.info("\n" + "=" * 80)
+    logger.info("✅ PIPELINE COMPLETED SUCCESSFULLY")
+    logger.info(f"Total execution time: {stats['execution_time']}")
+    logger.info("=" * 80)
+    
+    return 0
+
+
+if __name__ == "__main__":
+    exit_code = main()
+    sys.exit(exit_code)

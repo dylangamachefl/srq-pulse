@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.env
+*.tmp
+data/latest_listings.csv
+data/*.zip
+data/county_parcels.csv
+data/county_sales.csv
+*.log
+sarasota_pulse_implemnentation_plan.md

@@ -1,0 +1,4 @@
+# Pipeline Error Log
+
+This file will be populated automatically by the pipeline when errors occur.
+Each error will be timestamped and logged here for degraded mode notifications.
