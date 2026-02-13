@@ -179,8 +179,8 @@ EMAIL_TEMPLATE = """
                     <tr>
                         <td>{{ row.week }}</td>
                         <td>${{ "{:,.0f}".format(row.median_price) if row.median_price else 'N/A' }}</td>
-                        <td>{{ "{:+.1%}".format(row.price_delta) if row.price_delta else '—' }}</td>
-                        <td>{{ "{:+.1%}".format(row.price_yoy) if row.price_yoy else '—' }} YoY</td>
+                        <td>{{ "{:+.1%}".format(row.price_delta) if row.price_delta is not none else '—' }}</td>
+                        <td>{{ "{:+.1%}".format(row.price_yoy) if row.price_yoy is not none else '—' }} YoY</td>
                         <td>{{ "{:.2%}".format(row.sale_to_list) if row.sale_to_list else 'N/A' }}</td>
                         <td>{{ row.signal }}</td>
                     </tr>
@@ -211,8 +211,8 @@ EMAIL_TEMPLATE = """
                     {% for row in inventory %}
                     <tr>
                         <td>{{ row.week }}</td>
-                        <td>{{ "{:.1f}".format(row.weeks_of_supply) if row.weeks_of_supply else 'N/A' }}</td>
-                        <td>{{ "{:+.1%}".format(row.supply_yoy) if row.supply_yoy else '—' }} YoY</td>
+                        <td>{{ "{:.1f}".format(row.weeks_of_supply) if row.weeks_of_supply is not none else 'N/A' }}</td>
+                        <td>{{ "{:+.1%}".format(row.supply_yoy) if row.supply_yoy is not none else 'anomaly' }} YoY</td>
                         <td>{{ "{:,.0f}".format(row.new_listings) if row.new_listings else 'N/A' }}</td>
                         <td>{{ "{:,.0f}".format(row.homes_sold) if row.homes_sold else 'N/A' }}</td>
                         <td>{{ row.market_state }}</td>

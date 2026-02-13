@@ -119,12 +119,16 @@ def metric_price_pressure_index(redfin_dir: Path) -> pd.DataFrame:
         # Calculate WoW price delta as percentage change
         merged['price_delta'] = merged['Median Sale Price'].pct_change()
         
+        # FIX: Ensure price_delta is None if it's NaN for template rendering
+        merged['price_delta'] = merged['price_delta'].where(merged['price_delta'].notna(), None)
+        
         # Calculate signal
         def get_price_signal(row):
             ratio = row['Average Sale To List Ratio']
+            delta = row['price_delta']
             
-            if pd.isna(row['price_delta']):
-                # If WoW delta is NaN, don't reference price direction
+            if delta is None or pd.isna(delta):
+                # If WoW delta is missing, don't reference price direction
                 if ratio > 1.0:
                     return f"SELLERS CONTROL (Ratio: {ratio:.1%})"
                 elif ratio < 0.97:
@@ -132,7 +136,7 @@ def metric_price_pressure_index(redfin_dir: Path) -> pd.DataFrame:
                 else:
                     return f"NEUTRAL (Ratio: {ratio:.1%})"
             
-            price_trend = "DOWN" if row['price_delta'] < 0 else "UP"
+            price_trend = "DOWN" if delta < 0 else "UP"
             if ratio > 1.0:
                 return f"SELLERS CONTROL (Ratio: {ratio:.1%}, Price {price_trend})"
             elif ratio < 0.97:
@@ -231,6 +235,10 @@ def metric_inventory_absorption(redfin_dir: Path) -> pd.DataFrame:
         # Ensure supply_yoy exists even if column was missing
         if 'supply_yoy' not in result.columns:
             result['supply_yoy'] = 0.0
+        else:
+            # FIX: Sanity clamp for Weeks of Supply YoY
+            # If absolute YoY change exceeds 200%, mark as None for template to handle
+            result['supply_yoy'] = result['supply_yoy'].apply(lambda x: x if abs(x) <= 2.0 else None)
             
         # Format dates once during transformation
         result['week'] = pd.to_datetime(result['week']).dt.strftime("%b %d")
@@ -275,8 +283,14 @@ def metric_cash_flow_zones(zillow_zori_path: Path, parcels_df: pd.DataFrame) -> 
         # Residential filter: JUST > 0 and LIVING > 0
         parcels = parcels[(parcels['JUST'] > 0) & (parcels['LIVING'] > 0)]
         
+        # FIX: Filter LOCZIP to only include Sarasota (342xxx)
+        parcels = parcels[parcels['LOCZIP'].astype(str).str.startswith('342')]
+        
         zip_values = parcels.groupby("LOCZIP")["JUST"].mean().reset_index()
         zip_values.columns = ["zip", "avg_assessed"]
+        
+        # FIX: Cast zip to int then string to remove .0
+        zip_values['zip'] = zip_values['zip'].astype(int).astype(str)
         
         # 2. Get latest county-wide rent (ZORI)
         zori_df = pd.read_csv(zillow_zori_path)
@@ -392,9 +406,17 @@ def metric_flip_detector(sales_df: pd.DataFrame, parcels_df: pd.DataFrame) -> pd
         sales_df = sales_df.copy()
         sales_df['SaleDate'] = pd.to_datetime(sales_df['SaleDate'], errors='coerce')
         
+        # FIX: Filter out bulk transfers (multiple accounts with same price and date)
+        bulk_detect = sales_df.groupby(['SaleDate', 'SalePrice']).size().reset_index(name='count')
+        bulk_keys = bulk_detect[bulk_detect['count'] > 3][['SaleDate', 'SalePrice']]
+        if not bulk_keys.empty:
+            logger.info(f"Detected {len(bulk_keys)} bulk transfer dates/prices - filtering out")
+            sales_df = sales_df[~sales_df.set_index(['SaleDate', 'SalePrice']).index.isin(bulk_keys.set_index(['SaleDate', 'SalePrice']).index)]
+
         # Group by account to find repeat sales
         flips = []
         for account, group in sales_df.groupby('Account'):
+            # FIX: Sort by SaleDate chronologically before assigning buy/sell labels
             group = group.sort_values('SaleDate')
             
             for i in range(len(group) - 1):
@@ -407,6 +429,12 @@ def metric_flip_detector(sales_df: pd.DataFrame, parcels_df: pd.DataFrame) -> pd
                 if 120 <= days_held <= 365:
                     # Avoid division by zero
                     if sale1['SalePrice'] > 0:
+                        markup_pct = (sale2['SalePrice'] - sale1['SalePrice']) / sale1['SalePrice']
+                        
+                        # FIX: Filter out anomaly flips (loss > 50%)
+                        if markup_pct < -0.5:
+                            continue
+                            
                         flips.append({
                             'account': account,
                             'first_sale_date': sale1['SaleDate'],
@@ -415,7 +443,7 @@ def metric_flip_detector(sales_df: pd.DataFrame, parcels_df: pd.DataFrame) -> pd
                             'second_sale_price': sale2['SalePrice'],
                             'days_held': days_held,
                             'markup': sale2['SalePrice'] - sale1['SalePrice'],
-                            'markup_pct': (sale2['SalePrice'] - sale1['SalePrice']) / sale1['SalePrice'],
+                            'markup_pct': markup_pct,
                             'outcome': 'PROFITABLE' if sale2['SalePrice'] > sale1['SalePrice'] else 'LOSS'
                         })
         
@@ -466,7 +494,9 @@ def metric_zip_price_trends(sales_df: pd.DataFrame, parcels_df: pd.DataFrame) ->
         parcels['ACCOUNT'] = parcels['ACCOUNT'].astype(str).str.strip()
         
         merged = sales.merge(parcels, left_on='Account', right_on='ACCOUNT')
-        merged['zip'] = pd.to_numeric(merged['LOCZIP'], errors='coerce')
+        # FIX: Clean and format zip as int string
+        merged['zip'] = pd.to_numeric(merged['LOCZIP'], errors='coerce').fillna(0).astype(int).astype(str)
+        merged = merged[merged['zip'].str.startswith('342')]
         
         cutoff_now = datetime.now() - timedelta(days=365)
         cutoff_prior = datetime.now() - timedelta(days=730)
@@ -482,6 +512,10 @@ def metric_zip_price_trends(sales_df: pd.DataFrame, parcels_df: pd.DataFrame) ->
         
         result = current_by_zip.merge(prior_by_zip, on="zip", how="inner")
         result["yoy_change"] = (result["price_now"] - result["price_prior"]) / result["price_prior"]
+        
+        # FIX: Flag low volume zips with asterisk
+        result['zip'] = result.apply(lambda x: f"{x['zip']}*" if x['sales_volume'] < 30 else x['zip'], axis=1)
+        
         result = result.sort_values("yoy_change", ascending=True)
         
         return result
@@ -511,7 +545,10 @@ def metric_assessment_ratio(sales_df: pd.DataFrame, parcels_df: pd.DataFrame) ->
         parcels['ACCOUNT'] = parcels['ACCOUNT'].astype(str).str.strip()
         
         merged = sales.merge(parcels, left_on='Account', right_on='ACCOUNT')
-        merged['zip'] = pd.to_numeric(merged['LOCZIP'], errors='coerce')
+        # FIX: Filter and format zip
+        merged['zip'] = pd.to_numeric(merged['LOCZIP'], errors='coerce').fillna(0).astype(int).astype(str)
+        merged = merged[merged['zip'].str.startswith('342')]
+        
         merged['JUST'] = pd.to_numeric(merged['JUST'], errors='coerce')
         
         # Last 12 months
@@ -627,7 +664,9 @@ def metric_investor_activity(sales_df: pd.DataFrame, parcels_df: pd.DataFrame) -
         parcels['ACCOUNT'] = parcels['ACCOUNT'].astype(str).str.strip()
         
         merged = sales.merge(parcels, left_on='Account', right_on='ACCOUNT')
-        merged['zip'] = pd.to_numeric(merged['LOCZIP'], errors='coerce')
+        # FIX: Filter and format zip
+        merged['zip'] = pd.to_numeric(merged['LOCZIP'], errors='coerce').fillna(0).astype(int).astype(str)
+        merged = merged[merged['zip'].str.startswith('342')]
         
         # Last 12 months
         cutoff = datetime.now() - timedelta(days=365)
