@@ -193,7 +193,7 @@ def download_all_tabs() -> bool:
     
     with sync_playwright() as p:
         logger.info("Launching browser...")
-        browser = p.chromium.launch(headless=False)  # Visible for debugging
+        browser = p.chromium.launch(headless=True)
         context = browser.new_context(
             accept_downloads=True,
             viewport={'width': 1920, 'height': 1080}
