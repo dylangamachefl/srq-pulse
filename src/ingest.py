@@ -237,9 +237,10 @@ def ingest_redfin_data() -> bool:
             dest_path = redfin_dir / f"{metric_name}.csv"
             
             # Read and re-save to standardize format
-            # Tableau exports CSVs as UTF-16 with BOM
-            df = pd.read_csv(inbox_path, encoding='utf-16')
-            df.to_csv(dest_path, index=False)
+            # Tableau exports CSVs as UTF-16 with Tab separator
+            df = pd.read_csv(inbox_path, encoding='utf-16', sep='\t')
+            # Save as standard comma-separated UTF-8 for simpler processing later
+            df.to_csv(dest_path, index=False, encoding='utf-8')
             logger.info(f"  ✅ Copied {metric_name}.csv from inbox")
         
         return True
@@ -297,6 +298,7 @@ def ingest_county_data() -> bool:
         
         # Filter and clean parcel data
         logger.info("Filtering parcel data to LOCCITY == 'SARASOTA'...")
+        parcels_df['LOCCITY'] = parcels_df['LOCCITY'].astype(str).str.strip().str.upper()
         parcels_df = parcels_df[parcels_df['LOCCITY'] == 'SARASOTA'].copy()
         
         # Keep only useful columns

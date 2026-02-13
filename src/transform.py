@@ -79,19 +79,59 @@ def metric_price_pressure_index(redfin_dir: Path) -> pd.DataFrame:
     logger.info("Calculating Metric 1: Price Pressure Index...")
     
     try:
+        # Load Redfin data
+        # Note: Ingestion already converted Tab -> Comma
         median_price_df = pd.read_csv(redfin_dir / "median_sale_price.csv")
         sale_to_list_df = pd.read_csv(redfin_dir / "avg_sale_to_list.csv")
         
-        # TODO: Parse Tableau crosstab format and calculate WoW trends
-        # Expected columns from Tableau: Date, Median Sale Price (current year), Median Sale Price (prior year)
+        # Clean Period End to datetime
+        median_price_df['Period End'] = pd.to_datetime(median_price_df['Period End'])
+        sale_to_list_df['Period End'] = pd.to_datetime(sale_to_list_df['Period End'])
         
-        # Placeholder until Redfin data structure is known
-        result = pd.DataFrame(columns=['week', 'median_price', 'price_delta', 'sale_to_list', 'signal'])
+        # Clean Median Sale Price (remove commas/quotes)
+        if median_price_df['Median Sale Price'].dtype == object:
+            median_price_df['Median Sale Price'] = (
+                median_price_df['Median Sale Price']
+                .str.replace('"', '')
+                .str.replace(',', '')
+                .astype(float)
+            )
+        
+        # Merge metrics on date
+        merged = median_price_df.merge(sale_to_list_df, on='Period End', suffixes=('', '_ratio'))
+        
+        # Get latest 4 weeks
+        merged = merged.sort_values('Period End', ascending=False).head(4).copy()
+        merged = merged.sort_values('Period End') # Sort back chronologically for delta
+        
+        # Calculate WoW price delta
+        merged['price_delta'] = merged['Median Sale Price'].diff()
+        
+        # Calculate signal
+        def get_price_signal(row):
+            price_trend = "DOWN" if row['price_delta'] < 0 else "UP"
+            ratio = row['Average Sale To List Ratio']
+            if ratio > 1.0:
+                return f"SELLERS CONTROL (Ratio: {ratio:.1%}, Price {price_trend})"
+            elif ratio < 0.97:
+                return f"BUYERS LEVERAGE (Ratio: {ratio:.1%}, Price {price_trend})"
+            else:
+                return f"NEUTRAL (Ratio: {ratio:.1%}, Price {price_trend})"
+        
+        merged['signal'] = merged.apply(get_price_signal, axis=1)
+        
+        # Format for output
+        result = merged[['Period End', 'Median Sale Price', 'price_delta', 'Average Sale To List Ratio', 'signal']].copy()
+        result.columns = ['week', 'median_price', 'price_delta', 'sale_to_list', 'signal']
+        
         logger.info(f"Calculated {len(result)} weeks of price pressure data")
         return result
         
     except FileNotFoundError as e:
         logger.warning(f"Redfin data not found - skipping price pressure analysis: {e}")
+        return pd.DataFrame()
+    except Exception as e:
+        logger.error(f"Error calculating price pressure index: {e}")
         return pd.DataFrame()
 
 
@@ -116,15 +156,44 @@ def metric_inventory_absorption(redfin_dir: Path) -> pd.DataFrame:
         listings_df = pd.read_csv(redfin_dir / "new_listings.csv")
         sold_df = pd.read_csv(redfin_dir / "homes_sold.csv")
         
-        # TODO: Parse Tableau crosstab format and calculate absorption ratio
+        # Clean types
+        supply_df['Period End'] = pd.to_datetime(supply_df['Period End'])
+        listings_df['Period End'] = pd.to_datetime(listings_df['Period End'])
+        sold_df['Period End'] = pd.to_datetime(sold_df['Period End'])
         
-        # Placeholder until Redfin data structure is known
-        result = pd.DataFrame(columns=['week', 'weeks_of_supply', 'new_listings', 'homes_sold', 'market_state'])
+        # Merge
+        merged = supply_df.merge(listings_df, on='Period End').merge(sold_df, on='Period End')
+        
+        # Get latest 4 weeks
+        merged = merged.sort_values('Period End', ascending=False).head(4).copy()
+        
+        # Calculate ratio
+        merged['absorption_ratio'] = merged['Adjusted Average Homes Sold'] / merged['Adjusted Average New Listings']
+        
+        # Determine state
+        def get_market_state(row):
+            supply = row['Months Of Supply']
+            if supply > 18:
+                return "BUYERS MARKET (Heavy Supply)"
+            elif supply < 8:
+                return "SELLERS MARKET (Low Supply)"
+            else:
+                return "BALANCED MARKET"
+        
+        merged['market_state'] = merged.apply(get_market_state, axis=1)
+        
+        # Format for output
+        result = merged[['Period End', 'Months Of Supply', 'Adjusted Average New Listings', 'Adjusted Average Homes Sold', 'market_state']].copy()
+        result.columns = ['week', 'weeks_of_supply', 'new_listings', 'homes_sold', 'market_state']
+        
         logger.info(f"Calculated {len(result)} weeks of inventory data")
         return result
         
     except FileNotFoundError as e:
         logger.warning(f"Redfin data not found - skipping inventory analysis: {e}")
+        return pd.DataFrame()
+    except Exception as e:
+        logger.error(f"Error calculating inventory & absorption: {e}")
         return pd.DataFrame()
 
 
@@ -217,16 +286,18 @@ def metric_flip_detector(sales_df: pd.DataFrame, parcels_df: pd.DataFrame) -> pd
                 
                 # Flag if held 4-12 months
                 if 120 <= days_held <= 365:
-                    flips.append({
-                        'account': account,
-                        'first_sale_date': sale1['SaleDate'],
-                        'first_sale_price': sale1['SalePrice'],
-                        'second_sale_date': sale2['SaleDate'],
-                        'second_sale_price': sale2['SalePrice'],
-                        'days_held': days_held,
-                        'markup': sale2['SalePrice'] - sale1['SalePrice'],
-                        'markup_pct': (sale2['SalePrice'] - sale1['SalePrice']) / sale1['SalePrice']
-                    })
+                    # Avoid division by zero
+                    if sale1['SalePrice'] > 0:
+                        flips.append({
+                            'account': account,
+                            'first_sale_date': sale1['SaleDate'],
+                            'first_sale_price': sale1['SalePrice'],
+                            'second_sale_date': sale2['SaleDate'],
+                            'second_sale_price': sale2['SalePrice'],
+                            'days_held': days_held,
+                            'markup': sale2['SalePrice'] - sale1['SalePrice'],
+                            'markup_pct': (sale2['SalePrice'] - sale1['SalePrice']) / sale1['SalePrice']
+                        })
         
         result = pd.DataFrame(flips)
         logger.info(f"Found {len(result)} probable flips (4-12 month holds)")
@@ -268,6 +339,10 @@ def metric_appraisal_gap(zillow_zhvi_path: Path, parcels_df: pd.DataFrame) -> pd
         # Calculate average JUST by zip from county parcels
         parcels_df = parcels_df.copy()
         parcels_df['JUST'] = pd.to_numeric(parcels_df['JUST'], errors='coerce')
+        
+        # Ensure zip codes are clean numeric for merging
+        parcels_df['LOCZIP'] = pd.to_numeric(parcels_df['LOCZIP'], errors='coerce')
+        zhvi_clean['zip_code'] = pd.to_numeric(zhvi_clean['zip_code'], errors='coerce')
         
         county_avg = parcels_df.groupby('LOCZIP')['JUST'].mean().reset_index()
         county_avg.columns = ['zip_code', 'avg_just']
@@ -316,8 +391,8 @@ def run_transformation() -> dict:
     
     # Load county data
     try:
-        parcels_df = pd.read_csv("data/county_parcels.csv")
-        sales_df = pd.read_csv("data/county_sales.csv")
+        parcels_df = pd.read_csv("data/county_parcels.csv", low_memory=False)
+        sales_df = pd.read_csv("data/county_sales.csv", low_memory=False)
         logger.info(f"Loaded {len(parcels_df)} parcels and {len(sales_df)} sales")
     except FileNotFoundError:
         logger.warning("County data not found - some metrics will be skipped")

@@ -1,0 +1,10 @@
+{
+  "run_date": "20260213",
+  "metric_counts": {
+    "price_pressure": 4,
+    "inventory_absorption": 4,
+    "cash_flow_zones": 1,
+    "flip_detector": 50354,
+    "appraisal_gap": 0
+  }
+}
