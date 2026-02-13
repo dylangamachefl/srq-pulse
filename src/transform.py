@@ -100,6 +100,18 @@ def metric_price_pressure_index(redfin_dir: Path) -> pd.DataFrame:
         # Merge metrics on date
         merged = median_price_df.merge(sale_to_list_df, on='Period End', suffixes=('', '_ratio'))
         
+        # Select relevant columns including YoY if they exist
+        cols_to_keep = ['Period End', 'Median Sale Price', 'Average Sale To List Ratio']
+        col_rename = {
+            'Period End': 'week',
+            'Median Sale Price': 'median_price',
+            'Average Sale To List Ratio': 'sale_to_list'
+        }
+        
+        if 'Median Sale Price Yoy' in median_price_df.columns:
+            cols_to_keep.append('Median Sale Price Yoy')
+            col_rename['Median Sale Price Yoy'] = 'price_yoy'
+        
         # Get latest 4 weeks
         merged = merged.sort_values('Period End', ascending=False).head(4).copy()
         merged = merged.sort_values('Period End') # Sort back chronologically for delta
@@ -109,11 +121,18 @@ def metric_price_pressure_index(redfin_dir: Path) -> pd.DataFrame:
         
         # Calculate signal
         def get_price_signal(row):
+            ratio = row['Average Sale To List Ratio']
+            
             if pd.isna(row['price_delta']):
-                return "INITIALIZING"
+                # If WoW delta is NaN, don't reference price direction
+                if ratio > 1.0:
+                    return f"SELLERS CONTROL (Ratio: {ratio:.1%})"
+                elif ratio < 0.97:
+                    return f"BUYERS LEVERAGE (Ratio: {ratio:.1%})"
+                else:
+                    return f"NEUTRAL (Ratio: {ratio:.1%})"
             
             price_trend = "DOWN" if row['price_delta'] < 0 else "UP"
-            ratio = row['Average Sale To List Ratio']
             if ratio > 1.0:
                 return f"SELLERS CONTROL (Ratio: {ratio:.1%}, Price {price_trend})"
             elif ratio < 0.97:
@@ -124,8 +143,15 @@ def metric_price_pressure_index(redfin_dir: Path) -> pd.DataFrame:
         merged['signal'] = merged.apply(get_price_signal, axis=1)
         
         # Format for output
-        result = merged[['Period End', 'Median Sale Price', 'price_delta', 'Average Sale To List Ratio', 'signal']].copy()
-        result.columns = ['week', 'median_price', 'price_delta', 'sale_to_list', 'signal']
+        result = merged[cols_to_keep + ['price_delta', 'signal']].copy()
+        result.rename(columns=col_rename, inplace=True)
+        
+        # Ensure price_yoy exists even if column was missing
+        if 'price_yoy' not in result.columns:
+            result['price_yoy'] = 0.0
+        
+        # Format dates once during transformation
+        result['week'] = pd.to_datetime(result['week']).dt.strftime("%b %d")
         
         logger.info(f"Calculated {len(result)} weeks of price pressure data")
         return result
@@ -167,6 +193,19 @@ def metric_inventory_absorption(redfin_dir: Path) -> pd.DataFrame:
         # Merge
         merged = supply_df.merge(listings_df, on='Period End').merge(sold_df, on='Period End')
         
+        # Select relevant columns including YoY if they exist
+        cols_to_keep = ['Period End', 'Months Of Supply', 'Adjusted Average New Listings', 'Adjusted Average Homes Sold']
+        col_rename = {
+            'Period End': 'week',
+            'Months Of Supply': 'weeks_of_supply',
+            'Adjusted Average New Listings': 'new_listings',
+            'Adjusted Average Homes Sold': 'homes_sold'
+        }
+        
+        if 'Months Of Supply Yoy' in supply_df.columns:
+            cols_to_keep.append('Months Of Supply Yoy')
+            col_rename['Months Of Supply Yoy'] = 'supply_yoy'
+            
         # Get latest 4 weeks
         merged = merged.sort_values('Period End', ascending=False).head(4).copy()
         
@@ -186,8 +225,15 @@ def metric_inventory_absorption(redfin_dir: Path) -> pd.DataFrame:
         merged['market_state'] = merged.apply(get_market_state, axis=1)
         
         # Format for output
-        result = merged[['Period End', 'Months Of Supply', 'Adjusted Average New Listings', 'Adjusted Average Homes Sold', 'market_state']].copy()
-        result.columns = ['week', 'weeks_of_supply', 'new_listings', 'homes_sold', 'market_state']
+        result = merged[cols_to_keep + ['market_state']].copy()
+        result.rename(columns=col_rename, inplace=True)
+        
+        # Ensure supply_yoy exists even if column was missing
+        if 'supply_yoy' not in result.columns:
+            result['supply_yoy'] = 0.0
+            
+        # Format dates once during transformation
+        result['week'] = pd.to_datetime(result['week']).dt.strftime("%b %d")
         
         logger.info(f"Calculated {len(result)} weeks of inventory data")
         return result
@@ -200,58 +246,128 @@ def metric_inventory_absorption(redfin_dir: Path) -> pd.DataFrame:
         return pd.DataFrame()
 
 
-def metric_cash_flow_zones(zillow_zhvi_path: Path, zillow_zori_path: Path) -> pd.DataFrame:
+def metric_cash_flow_zones(zillow_zori_path: Path, parcels_df: pd.DataFrame) -> pd.DataFrame:
     """
-    Metric 3: Cash Flow Zone Finder (UPGRADED)
+    Metric 3: Cash Flow Zone Finder (UPGRADED with SCPA logic)
     
-    Calculates rent/value ratio for each Sarasota zip code using real Zillow data.
-    Ranks zips from best to worst cash flow potential.
+    Calculates rent/value ratio per zip code using:
+    - Numerator: County-wide ZORI (from Zillow)
+    - Denominator: Average assessed value (JUST) per zip (from SCPA)
+    
+    Excludes non-residential parcels (JUST=0 or LIVING=0).
     
     Returns:
-        DataFrame with columns: zip_code, zhvi, zori, cash_flow_ratio, rank
+        DataFrame with columns: zip, avg_assessed, est_annual_rent, cash_flow_ratio, rank
     """
-    logger.info("Calculating Metric 3: Cash Flow Zone Finder...")
+    logger.info("Calculating Metric 3: Cash Flow Zone Finder (SCPA-Powered)...")
+    
+    try:
+        # 1. Get average assessed value per zip from parcels
+        if parcels_df.empty:
+            logger.warning("No parcel data for cash flow analysis")
+            return pd.DataFrame()
+            
+        parcels = parcels_df.copy()
+        parcels['JUST'] = pd.to_numeric(parcels['JUST'], errors='coerce')
+        parcels['LIVING'] = pd.to_numeric(parcels['LIVING'], errors='coerce')
+        parcels['LOCZIP'] = pd.to_numeric(parcels['LOCZIP'], errors='coerce')
+        
+        # Residential filter: JUST > 0 and LIVING > 0
+        parcels = parcels[(parcels['JUST'] > 0) & (parcels['LIVING'] > 0)]
+        
+        zip_values = parcels.groupby("LOCZIP")["JUST"].mean().reset_index()
+        zip_values.columns = ["zip", "avg_assessed"]
+        
+        # 2. Get latest county-wide rent (ZORI)
+        zori_df = pd.read_csv(zillow_zori_path)
+        date_cols = [col for col in zori_df.columns if re.match(r'\d{4}-\d{2}-\d{2}', col)]
+        if not date_cols:
+            logger.warning("No ZORI data found")
+            return pd.DataFrame()
+            
+        latest_col = sorted(date_cols)[-1]
+        county_rent = zori_df[latest_col].values[0]
+        
+        # 3. Calculate metrics
+        zip_values["est_annual_rent"] = county_rent * 12
+        zip_values["cash_flow_ratio"] = zip_values["est_annual_rent"] / zip_values["avg_assessed"]
+        
+        # Rank and filter to reasonable zips (Sarasota only)
+        # Sarasota zips are already filtered in ingest.py LOCCITY == 'SARASOTA'
+        zip_values = zip_values.sort_values("cash_flow_ratio", ascending=False)
+        zip_values["rank"] = range(1, len(zip_values) + 1)
+        
+        logger.info(f"Ranked {len(zip_values)} zips by SCPA-powered cash flow ratio")
+        return zip_values
+        
+    except Exception as e:
+        logger.error(f"Error calculating SCPA cash flow zones: {e}")
+        return pd.DataFrame()
+
+
+def metric_trend_lines(zillow_zhvi_path: Path, zillow_zori_path: Path, parcels_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Enhancement 2: Cash Flow & Appraisal Trend Lines
+    
+    Tracks county-level trends over the last 6 months.
+    - Cash Flow Trend: ZORI * 12 / ZHVI
+    - Appraisal Gap Trend: ZHVI vs (Constant) Avg SCPA JUST
+    
+    Returns:
+        DataFrame with columns: month, zhvi, zori, flow_ratio, appraisal_gap
+    """
+    logger.info("Calculating Enhancement 2: Trend Lines (Last 6 Months)...")
     
     try:
         zhvi_df = pd.read_csv(zillow_zhvi_path)
         zori_df = pd.read_csv(zillow_zori_path)
         
-        # Get the most recent month's data (last date column)
-        date_cols_zhvi = [col for col in zhvi_df.columns if re.match(r'\d{4}-\d{2}-\d{2}', col)]
-        date_cols_zori = [col for col in zori_df.columns if re.match(r'\d{4}-\d{2}-\d{2}', col)]
+        # Get last 6 months of columns
+        date_cols = [col for col in zhvi_df.columns if re.match(r'\d{4}-\d{2}-\d{2}', col)]
+        months = sorted(date_cols)[-6:]
         
-        if not date_cols_zhvi or not date_cols_zori:
-            logger.warning("No date columns found in Zillow data")
-            return pd.DataFrame()
+        # Calculate constant county-wide JUST average
+        if not parcels_df.empty:
+            parcels = parcels_df.copy()
+            parcels['JUST'] = pd.to_numeric(parcels['JUST'], errors='coerce')
+            parcels['LIVING'] = pd.to_numeric(parcels['LIVING'], errors='coerce')
+            county_just_avg = parcels[(parcels['JUST'] > 0) & (parcels['LIVING'] > 0)]['JUST'].mean()
+        else:
+            county_just_avg = 0
+            
+        trend_data = []
+        for m in months:
+            zhvi_val = zhvi_df[m].values[0]
+            zori_val = zori_df[m].values[0] if m in zori_df.columns else 0
+            
+            flow_ratio = (zori_val * 12) / zhvi_val if zhvi_val > 0 else 0
+            appraisal_gap = (zhvi_val - county_just_avg) / county_just_avg if county_just_avg > 0 else 0
+            
+            trend_data.append({
+                "month": pd.to_datetime(m).strftime("%b %Y"),
+                "zhvi": zhvi_val,
+                "zori": zori_val,
+                "flow_ratio": flow_ratio,
+                "appraisal_gap": appraisal_gap
+            })
+            
+        result = pd.DataFrame(trend_data)
         
-        latest_zhvi_col = sorted(date_cols_zhvi)[-1]
-        latest_zori_col = sorted(date_cols_zori)[-1]
+        # Add direction for flow ratio
+        result['direction'] = "→ Flat"
+        if len(result) > 1:
+            for i in range(1, len(result)):
+                prev = result.iloc[i-1]['flow_ratio']
+                curr = result.iloc[i]['flow_ratio']
+                if curr > prev * 1.001:
+                    result.at[i, 'direction'] = "↑ Expanding"
+                elif curr < prev * 0.999:
+                    result.at[i, 'direction'] = "↓ Compressing"
         
-        # Extract zip, value, rent for each zip
-        zhvi_clean = zhvi_df[['RegionName', latest_zhvi_col]].copy()
-        zhvi_clean.columns = ['zip_code', 'zhvi']
-        
-        zori_clean = zori_df[['RegionName', latest_zori_col]].copy()
-        zori_clean.columns = ['zip_code', 'zori']
-        
-        # Merge
-        result = zhvi_clean.merge(zori_clean, on='zip_code', how='inner')
-        
-        # Calculate cash flow ratio (monthly rent / home value)
-        result['cash_flow_ratio'] = result['zori'] / result['zhvi']
-        
-        # Rank by ratio (higher = better cash flow)
-        result['rank'] = result['cash_flow_ratio'].rank(ascending=False).astype(int)
-        result = result.sort_values('rank')
-        
-        logger.info(f"Ranked {len(result)} Sarasota zip codes by cash flow potential")
         return result
         
-    except FileNotFoundError as e:
-        logger.warning(f"Zillow data not found - skipping cash flow analysis: {e}")
-        return pd.DataFrame()
     except Exception as e:
-        logger.error(f"Error calculating cash flow zones: {e}")
+        logger.error(f"Error calculating trend lines: {e}")
         return pd.DataFrame()
 
 
@@ -299,15 +415,126 @@ def metric_flip_detector(sales_df: pd.DataFrame, parcels_df: pd.DataFrame) -> pd
                             'second_sale_price': sale2['SalePrice'],
                             'days_held': days_held,
                             'markup': sale2['SalePrice'] - sale1['SalePrice'],
-                            'markup_pct': (sale2['SalePrice'] - sale1['SalePrice']) / sale1['SalePrice']
+                            'markup_pct': (sale2['SalePrice'] - sale1['SalePrice']) / sale1['SalePrice'],
+                            'outcome': 'PROFITABLE' if sale2['SalePrice'] > sale1['SalePrice'] else 'LOSS'
                         })
         
         result = pd.DataFrame(flips)
-        logger.info(f"Found {len(result)} probable flips (4-12 month holds)")
+        
+        # Apply filters: recently completed flips (last 180 days)
+        if not result.empty:
+            cutoff = datetime.now() - timedelta(days=180)
+            before_filter = len(result)
+            result = result[result["second_sale_date"] >= cutoff].copy()
+            logger.info(f"Filtered to last 180 days: {before_filter} -> {len(result)} flips")
+            
+            # Format dates for delivery
+            result["first_sale_date"] = result["first_sale_date"].dt.strftime("%b %d")
+            result["second_sale_date"] = result["second_sale_date"].dt.strftime("%b %d")
+        
+        # Sanity Check (10-150 range)
+        count = len(result)
+        if count < 10 or count > 150:
+            logger.warning(f"⚠️  SANITY CHECK: Flip count ({count}) is outside abnormal range (10-150). Verify data integrity.")
+        else:
+            logger.info(f"✅ Sanity check passed: {count} flips detected")
+            
         return result
         
     except Exception as e:
         logger.error(f"Error in flip detection: {e}")
+        return pd.DataFrame()
+
+
+def metric_zip_price_trends(sales_df: pd.DataFrame, parcels_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Enhancement 4: Zip-Level Price Trends (Last 12 Months vs Prior Year)
+    
+    Returns:
+        DataFrame with columns: zip, price_now, price_prior, yoy_change, sales_volume
+    """
+    logger.info("Calculating Enhancement 4: Zip-Level Price Trends...")
+    
+    try:
+        if sales_df.empty or parcels_df.empty:
+            return pd.DataFrame()
+            
+        # Join sales with parcels to get zip codes
+        sales = sales_df.copy()
+        parcels = parcels_df[['ACCOUNT', 'LOCZIP']].copy()
+        sales['Account'] = sales['Account'].astype(str).str.strip()
+        parcels['ACCOUNT'] = parcels['ACCOUNT'].astype(str).str.strip()
+        
+        merged = sales.merge(parcels, left_on='Account', right_on='ACCOUNT')
+        merged['zip'] = pd.to_numeric(merged['LOCZIP'], errors='coerce')
+        
+        cutoff_now = datetime.now() - timedelta(days=365)
+        cutoff_prior = datetime.now() - timedelta(days=730)
+        
+        recent = merged[merged["SaleDate"] >= cutoff_now]
+        prior = merged[(merged["SaleDate"] >= cutoff_prior) & (merged["SaleDate"] < cutoff_now)]
+        
+        current_by_zip = recent.groupby("zip")["SalePrice"].agg(['median', 'count']).reset_index()
+        current_by_zip.columns = ['zip', 'price_now', 'sales_volume']
+        
+        prior_by_zip = prior.groupby("zip")["SalePrice"].median().reset_index()
+        prior_by_zip.columns = ['zip', 'price_prior']
+        
+        result = current_by_zip.merge(prior_by_zip, on="zip", how="inner")
+        result["yoy_change"] = (result["price_now"] - result["price_prior"]) / result["price_prior"]
+        result = result.sort_values("yoy_change", ascending=True)
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error calculating zip price trends: {e}")
+        return pd.DataFrame()
+
+
+def metric_assessment_ratio(sales_df: pd.DataFrame, parcels_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Enhancement 6: Assessment Ratio by Zip (Sale Price vs County Appraised Value)
+    
+    Returns:
+        DataFrame with columns: zip, median_ratio, meaning
+    """
+    logger.info("Calculating Enhancement 6: Assessment Ratio by Zip...")
+    
+    try:
+        if sales_df.empty or parcels_df.empty:
+            return pd.DataFrame()
+            
+        # Join sales with parcels
+        sales = sales_df.copy()
+        parcels = parcels_df[['ACCOUNT', 'LOCZIP', 'JUST']].copy()
+        sales['Account'] = sales['Account'].astype(str).str.strip()
+        parcels['ACCOUNT'] = parcels['ACCOUNT'].astype(str).str.strip()
+        
+        merged = sales.merge(parcels, left_on='Account', right_on='ACCOUNT')
+        merged['zip'] = pd.to_numeric(merged['LOCZIP'], errors='coerce')
+        merged['JUST'] = pd.to_numeric(merged['JUST'], errors='coerce')
+        
+        # Last 12 months
+        cutoff = datetime.now() - timedelta(days=365)
+        recent = merged[(merged["SaleDate"] >= cutoff) & (merged["JUST"] > 0)]
+        
+        recent["assessment_ratio"] = recent["SalePrice"] / recent["JUST"]
+        
+        result = recent.groupby("zip")["assessment_ratio"].median().reset_index()
+        result.columns = ['zip', 'median_ratio']
+        
+        def get_ratio_meaning(ratio):
+            if ratio < 0.95: return "Market cooling (below assessed)"
+            elif ratio < 1.05: return "Neutral (near assessed)"
+            else: return "Stable/Hot (above assessed)"
+            
+        result['meaning'] = result['median_ratio'].apply(get_ratio_meaning)
+        result = result.sort_values("median_ratio", ascending=True)
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error calculating assessment ratio: {e}")
         return pd.DataFrame()
 
 
@@ -374,6 +601,61 @@ def metric_appraisal_gap(zillow_zhvi_path: Path, parcels_df: pd.DataFrame) -> pd
         return pd.DataFrame()
 
 
+def metric_investor_activity(sales_df: pd.DataFrame, parcels_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Enhancement 7: Investor Activity Tracker (Last 12 Months)
+    
+    Identifies likely investor purchases based on absence of homestead exemption.
+    
+    Returns:
+        DataFrame with columns: zip, total_sales, investor_share
+    """
+    logger.info("Calculating Enhancement 7: Investor Activity Tracker...")
+    
+    try:
+        if sales_df.empty or parcels_df.empty:
+            return pd.DataFrame()
+            
+        if 'HOMESTEAD' not in parcels_df.columns:
+            logger.warning("HOMESTEAD column missing from parcel data - skipping investor activity")
+            return pd.DataFrame()
+            
+        # Join sales with parcels
+        sales = sales_df.copy()
+        parcels = parcels_df[['ACCOUNT', 'LOCZIP', 'HOMESTEAD']].copy()
+        sales['Account'] = sales['Account'].astype(str).str.strip()
+        parcels['ACCOUNT'] = parcels['ACCOUNT'].astype(str).str.strip()
+        
+        merged = sales.merge(parcels, left_on='Account', right_on='ACCOUNT')
+        merged['zip'] = pd.to_numeric(merged['LOCZIP'], errors='coerce')
+        
+        # Last 12 months
+        cutoff = datetime.now() - timedelta(days=365)
+        recent = merged[merged["SaleDate"] >= cutoff].copy()
+        
+        if recent.empty:
+            return pd.DataFrame()
+            
+        # Flag investor vs owner-occupant
+        # HOMESTEAD > 0 means owner-occupied
+        recent["buyer_type"] = recent["HOMESTEAD"].apply(
+            lambda h: "OWNER-OCCUPANT" if pd.notna(h) and float(h) > 0 else "LIKELY INVESTOR"
+        )
+        
+        # Calculate share by zip
+        investor_stats = recent.groupby("zip")["buyer_type"].agg([
+            ('total_sales', 'count'),
+            ('investor_share', lambda x: (x == "LIKELY INVESTOR").mean())
+        ]).reset_index()
+        
+        result = investor_stats.sort_values("investor_share", ascending=False)
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error calculating investor activity: {e}")
+        return pd.DataFrame()
+
+
 def run_transformation() -> dict:
     """
     Execute all transformation metrics for V4.
@@ -405,6 +687,9 @@ def run_transformation() -> dict:
         sales_df = sales_df[sales_df['SalePrice'] > 10000].copy()
         logger.info(f"Filtered {before_count - len(sales_df)} nominal transfers (sales < $10k)")
         
+        # Parse dates
+        sales_df['SaleDate'] = pd.to_datetime(sales_df['SaleDate'], errors='coerce')
+        
         logger.info(f"Loaded {len(parcels_df)} parcels and {len(sales_df)} valid market sales")
     except FileNotFoundError:
         logger.warning("County data not found - some metrics will be skipped")
@@ -414,8 +699,23 @@ def run_transformation() -> dict:
     # Run metrics
     results['price_pressure'] = metric_price_pressure_index(redfin_dir)
     results['inventory_absorption'] = metric_inventory_absorption(redfin_dir)
-    results['cash_flow_zones'] = metric_cash_flow_zones(zillow_zhvi_path, zillow_zori_path)
+    results['cash_flow_zones'] = metric_cash_flow_zones(zillow_zori_path, parcels_df)
+    results['trend_lines'] = metric_trend_lines(zillow_zhvi_path, zillow_zori_path, parcels_df)
+    results['zip_price_trends'] = metric_zip_price_trends(sales_df, parcels_df)
+    results['assessment_ratio'] = metric_assessment_ratio(sales_df, parcels_df)
+    results['investor_activity'] = metric_investor_activity(sales_df, parcels_df)
     results['flip_detector'] = metric_flip_detector(sales_df, parcels_df)
+    
+    # Calculate Flip Summary
+    flips = results['flip_detector']
+    if not flips.empty:
+        total = len(flips)
+        profitable = len(flips[flips['outcome'] == 'PROFITABLE'])
+        loss = len(flips[flips['outcome'] == 'LOSS'])
+        results['flip_summary'] = f"{total} total — {profitable} profitable, {loss} loss"
+    else:
+        results['flip_summary'] = "No flips detected"
+        
     results['appraisal_gap'] = metric_appraisal_gap(zillow_zhvi_path, parcels_df)
     
     logger.info("✅ Transformation complete")

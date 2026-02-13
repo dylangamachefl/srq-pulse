@@ -312,7 +312,8 @@ def ingest_county_data() -> bool:
         # Keep only useful columns
         parcel_columns = [
             'ACCOUNT', 'LOCN', 'LOCS', 'LOCD', 'UNIT', 'LOCCITY', 'LOCZIP',
-            'LIVING', 'BEDR', 'BATH', 'YRBL', 'JUST', 'ASSD', 'SALE_AMT', 'SALE_DATE'
+            'LIVING', 'BEDR', 'BATH', 'YRBL', 'JUST', 'ASSD', 'SALE_AMT', 'SALE_DATE',
+            'HOMESTEAD'
         ]
         # Only keep columns that exist
         parcel_columns = [col for col in parcel_columns if col in parcels_df.columns]

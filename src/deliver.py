@@ -165,10 +165,11 @@ EMAIL_TEMPLATE = """
             {% if price_pressure|length > 0 %}
             <table>
                 <thead>
-                    <tr>
+                     <tr>
                         <th>Week</th>
                         <th>Median Price</th>
                         <th>WoW Δ</th>
+                        <th>YoY Δ</th>
                         <th>Sale-to-List</th>
                         <th>Signal</th>
                     </tr>
@@ -178,7 +179,8 @@ EMAIL_TEMPLATE = """
                     <tr>
                         <td>{{ row.week }}</td>
                         <td>${{ "{:,.0f}".format(row.median_price) if row.median_price else 'N/A' }}</td>
-                        <td>{{ "{:+.1%}".format(row.price_delta) if row.price_delta else 'N/A' }}</td>
+                        <td>{{ "{:+.1%}".format(row.price_delta) if row.price_delta else '—' }}</td>
+                        <td>{{ "{:+.1%}".format(row.price_yoy) if row.price_yoy else '—' }} YoY</td>
                         <td>{{ "{:.2%}".format(row.sale_to_list) if row.sale_to_list else 'N/A' }}</td>
                         <td>{{ row.signal }}</td>
                     </tr>
@@ -199,6 +201,7 @@ EMAIL_TEMPLATE = """
                     <tr>
                         <th>Week</th>
                         <th>Weeks of Supply</th>
+                        <th>YoY Δ</th>
                         <th>New Listings</th>
                         <th>Homes Sold</th>
                         <th>Market State</th>
@@ -209,6 +212,7 @@ EMAIL_TEMPLATE = """
                     <tr>
                         <td>{{ row.week }}</td>
                         <td>{{ "{:.1f}".format(row.weeks_of_supply) if row.weeks_of_supply else 'N/A' }}</td>
+                        <td>{{ "{:+.1%}".format(row.supply_yoy) if row.supply_yoy else '—' }} YoY</td>
                         <td>{{ "{:,.0f}".format(row.new_listings) if row.new_listings else 'N/A' }}</td>
                         <td>{{ "{:,.0f}".format(row.homes_sold) if row.homes_sold else 'N/A' }}</td>
                         <td>{{ row.market_state }}</td>
@@ -222,6 +226,37 @@ EMAIL_TEMPLATE = """
         </div>
         
         <div class="metric-section">
+            <h2>📈 Cash Flow Trend (County-Level)</h2>
+            <p>ZORI / ZHVI ratio over the last 6 months.</p>
+            {% if trend_lines|length > 0 %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>Month</th>
+                        <th>ZHVI</th>
+                        <th>ZORI</th>
+                        <th>Annual Ratio</th>
+                        <th>Direction</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in trend_lines %}
+                    <tr>
+                        <td>{{ row.month }}</td>
+                        <td>${{ "{:,.0f}".format(row.zhvi) }}</td>
+                        <td>${{ "{:,.0f}".format(row.zori) }}/mo</td>
+                        <td>{{ "{:.2%}".format(row.flow_ratio) }}</td>
+                        <td>{{ row.direction }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="no-data">Trend data unavailable</div>
+            {% endif %}
+        </div>
+        
+        <div class="metric-section">
             <h2>💰 Cash Flow Zones</h2>
             <p>Sarasota zip codes ranked by monthly rent / home value ratio.</p>
             {% if cash_flow_zones|length > 0 %}
@@ -229,20 +264,20 @@ EMAIL_TEMPLATE = """
                 <thead>
                     <tr>
                         <th>Rank</th>
-                        <th>Zip Code</th>
-                        <th>ZHVI (Home Value)</th>
-                        <th>ZORI (Rent)</th>
+                        <th>Zip</th>
+                        <th>Avg Assessed (JUST)</th>
+                        <th>Est. Annual Rent</th>
                         <th>Cash Flow Ratio</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% for row in cash_flow_zones %}
+                    {% for row in cash_flow_zones[:10] %}
                     <tr>
                         <td>{{ row.rank }}</td>
-                        <td>{{ row.zip_code }}</td>
-                        <td>${{ "{:,.0f}".format(row.zhvi) }}</td>
-                        <td>${{ "{:,.0f}".format(row.zori) }}/mo</td>
-                        <td><span class="badge badge-success">{{ "{:.3%}".format(row.cash_flow_ratio) }}</span></td>
+                        <td>{{ row.zip }}</td>
+                        <td>${{ "{:,.0f}".format(row.avg_assessed) }}</td>
+                        <td>${{ "{:,.0f}".format(row.est_annual_rent) }}</td>
+                        <td><span class="badge badge-success">{{ "{:.1%}".format(row.cash_flow_ratio) }}</span></td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -251,77 +286,146 @@ EMAIL_TEMPLATE = """
             <div class="no-data">Data unavailable this week (Zillow source failed)</div>
             {% endif %}
         </div>
-        
+
         <div class="metric-section">
-            <h2>🔄 Flip Activity</h2>
-            <p>Properties with 4-12 month hold periods (short hold flips).</p>
-            {% if flips|length > 0 %}
+            <h2>📍 Zip-Level Price Trends</h2>
+            <p>Median sale price per zip (Last 12 Months vs Prior Year).</p>
+            {% if zip_price_trends|length > 0 %}
             <table>
                 <thead>
                     <tr>
-                        <th>Account</th>
-                        <th>First Sale Date</th>
-                        <th>First Sale Price</th>
-                        <th>Second Sale Date</th>
-                        <th>Second Sale Price</th>
-                        <th>Days Held</th>
-                        <th>Markup</th>
+                        <th>Zip</th>
+                        <th>Median Price (Current)</th>
+                        <th>Median Price (Prior)</th>
+                        <th>YoY Change</th>
+                        <th>Sales Volume</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% for row in flips[:10] %}
+                    {% for row in zip_price_trends %}
                     <tr>
-                        <td>{{ row.account }}</td>
-                        <td>{{ row.first_sale_date.strftime('%Y-%m-%d') if row.first_sale_date else 'N/A' }}</td>
-                        <td>${{ "{:,.0f}".format(row.first_sale_price) if row.first_sale_price else 'N/A' }}</td>
-                        <td>{{ row.second_sale_date.strftime('%Y-%m-%d') if row.second_sale_date else 'N/A' }}</td>
-                        <td>${{ "{:,.0f}".format(row.second_sale_price) if row.second_sale_price else 'N/A' }}</td>
-                        <td>{{ row.days_held }}</td>
-                        <td><span class="badge badge-warning">{{ "{:+.1%}".format(row.markup_pct) if row.markup_pct else 'N/A' }}</span></td>
+                        <td>{{ row.zip }}</td>
+                        <td>${{ "{:,.0f}".format(row.price_now) }}</td>
+                        <td>${{ "{:,.0f}".format(row.price_prior) }}</td>
+                        <td><span class="badge {% if row.yoy_change > 0 %}badge-warning{% else %}badge-success{% endif %}">{{ "{:+.1%}".format(row.yoy_change) }}</span></td>
+                        <td>{{ row.sales_volume }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
-            {% if flips|length > 10 %}
-            <p style="color: #666; font-size: 13px;">Showing top 10 of {{ flips|length }} total flips.</p>
-            {% endif %}
             {% else %}
-            <div class="no-data">Data unavailable this week (SCPA county data failed) or no flips detected</div>
+            <div class="no-data">Zip-level price trends unavailable</div>
+            {% endif %}
+        </div>
+
+        <div class="metric-section">
+            <h2>📊 Assessment Ratio by Zip</h2>
+            <p>Sale Price vs County Appraised Value. Ratios below 1.0 indicate cooling.</p>
+            {% if assessment_ratio|length > 0 %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>Zip</th>
+                        <th>Median Ratio</th>
+                        <th>Meaning</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in assessment_ratio %}
+                    <tr>
+                        <td>{{ row.zip }}</td>
+                        <td>{{ "{:.2f}".format(row.median_ratio) }}</td>
+                        <td>{{ row.meaning }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="no-data">Assessment ratio data unavailable</div>
             {% endif %}
         </div>
         
         <div class="metric-section">
-            <h2>📊 Appraisal vs Market Gap</h2>
-            <p>Zip codes where ZHVI market values diverge from county assessments.</p>
-            {% if appraisal_gap|length > 0 %}
+            <h2>🔄 Flip Activity (Last 6 Months)</h2>
+            <p><strong>{{ flip_summary }}</strong></p>
+            
+            {% if profitable_flips|length > 0 %}
+            <h3 style="color: #2e7d32; margin-top: 15px;">Recent Profitable Flips</h3>
             <table>
                 <thead>
                     <tr>
-                        <th>Zip Code</th>
-                        <th>ZHVI (Market)</th>
-                        <th>Avg County Value</th>
-                        <th>Gap</th>
-                        <th>Flag</th>
+                        <th>Account</th>
+                        <th>Bought for</th>
+                        <th>Sold for</th>
+                        <th>Markup</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% for row in appraisal_gap %}
+                    {% for row in profitable_flips[:10] %}
                     <tr>
-                        <td>{{ row.zip_code }}</td>
-                        <td>${{ "{:,.0f}".format(row.zhvi) }}</td>
-                        <td>${{ "{:,.0f}".format(row.avg_just) }}</td>
-                        <td>{{ "{:+.1%}".format(row.gap_pct) }}</td>
-                        <td>
-                            <span class="badge {% if row.flag == 'HOT_MARKET' %}badge-warning{% else %}badge-success{% endif %}">
-                                {{ row.flag }}
-                            </span>
-                        </td>
+                        <td>{{ row.account }}</td>
+                        <td>${{ "{:,.0f}".format(row.first_sale_price) }} ({{ row.first_sale_date }})</td>
+                        <td>${{ "{:,.0f}".format(row.second_sale_price) }} ({{ row.second_sale_date }})</td>
+                        <td><span class="badge badge-success">{{ "{:+.1%}".format(row.markup_pct) }}</span></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% endif %}
+
+            {% if loss_flips|length > 0 %}
+            <h3 style="color: #c62828; margin-top: 15px;">Recent Flips at a Loss</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Account</th>
+                        <th>Bought for</th>
+                        <th>Sold for</th>
+                        <th>Loss</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in loss_flips[:10] %}
+                    <tr>
+                        <td>{{ row.account }}</td>
+                        <td>${{ "{:,.0f}".format(row.first_sale_price) }} ({{ row.first_sale_date }})</td>
+                        <td>${{ "{:,.0f}".format(row.second_sale_price) }} ({{ row.second_sale_date }})</td>
+                        <td><span class="badge badge-danger">{{ "{:+.1%}".format(row.markup_pct) }}</span></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% endif %}
+
+            {% if profitable_flips|length == 0 and loss_flips|length == 0 %}
+            <div class="no-data">No flips detected in the last 180 days</div>
+            {% endif %}
+        </div>
+
+        <div class="metric-section">
+            <h2>🏢 Investor Activity by Zip</h2>
+            <p>Likely investor share of total sales (Last 12 Months).</p>
+            {% if investor_activity|length > 0 %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>Zip</th>
+                        <th>Total Sales</th>
+                        <th>Investor %</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in investor_activity %}
+                    <tr>
+                        <td>{{ row.zip }}</td>
+                        <td>{{ row.total_sales }}</td>
+                        <td><span class="badge badge-warning">{{ "{:.1%}".format(row.investor_share) }}</span></td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
             {% else %}
-            <div class="no-data">Data unavailable this week (Zillow or SCPA failed) or no significant gaps</div>
+            <div class="no-data">Investor activity data unavailable</div>
             {% endif %}
         </div>
         
@@ -370,9 +474,14 @@ def render_email(results: dict, stats: dict, is_degraded: bool = False, error_lo
         error_log=error_log,
         price_pressure=df_to_list(results.get('price_pressure', pd.DataFrame())),
         inventory=df_to_list(results.get('inventory_absorption', pd.DataFrame())),
+        trend_lines=df_to_list(results.get('trend_lines', pd.DataFrame())),
         cash_flow_zones=df_to_list(results.get('cash_flow_zones', pd.DataFrame())),
-        flips=df_to_list(results.get('flip_detector', pd.DataFrame())),
-        appraisal_gap=df_to_list(results.get('appraisal_gap', pd.DataFrame())),
+        zip_price_trends=df_to_list(results.get('zip_price_trends', pd.DataFrame())),
+        assessment_ratio=df_to_list(results.get('assessment_ratio', pd.DataFrame())),
+        profitable_flips=df_to_list(results.get('flip_detector', pd.DataFrame())[results.get('flip_detector', pd.DataFrame())['outcome'] == 'PROFITABLE'] if not results.get('flip_detector', pd.DataFrame()).empty else pd.DataFrame()),
+        loss_flips=df_to_list(results.get('flip_detector', pd.DataFrame())[results.get('flip_detector', pd.DataFrame())['outcome'] == 'LOSS'] if not results.get('flip_detector', pd.DataFrame()).empty else pd.DataFrame()),
+        flip_summary=results.get('flip_summary', 'No flips detected'),
+        investor_activity=df_to_list(results.get('investor_activity', pd.DataFrame())),
         stats=stats
     )
     
@@ -480,18 +589,48 @@ def deliver_report(results: dict, stats: dict, is_degraded: bool = False):
 if __name__ == "__main__":
     # Test with mock data
     mock_results = {
-        'price_pressure': pd.DataFrame(),
-        'inventory_absorption': pd.DataFrame(),
-        'cash_flow_zones': pd.DataFrame(),
-        'flip_detector': pd.DataFrame(),
-        'appraisal_gap': pd.DataFrame(),
+        'price_pressure': pd.DataFrame([
+            {'week': 'Feb 08', 'median_price': 418250, 'price_delta': -0.023, 'price_yoy': 0.045, 'sale_to_list': 0.9526, 'signal': 'BUYERS LEVERAGE'},
+            {'week': 'Feb 01', 'median_price': 428000, 'price_delta': 0.012, 'price_yoy': 0.051, 'sale_to_list': 0.9610, 'signal': 'NEUTRAL'}
+        ]),
+        'inventory_absorption': pd.DataFrame([
+            {'week': 'Feb 08', 'weeks_of_supply': 12.4, 'supply_yoy': 0.15, 'new_listings': 450, 'homes_sold': 380, 'market_state': 'BALANCED MARKET'}
+        ]),
+        'trend_lines': pd.DataFrame([
+            {'month': 'Jan 2026', 'zhvi': 450000, 'zori': 2200, 'flow_ratio': 0.0586, 'direction': '↑ Expanding'},
+            {'month': 'Dec 2025', 'zhvi': 455000, 'zori': 2180, 'flow_ratio': 0.0575, 'direction': '→ Flat'}
+        ]),
+        'cash_flow_zones': pd.DataFrame([
+            {'rank': 1, 'zip': 34231, 'avg_assessed': 350000, 'est_annual_rent': 26400, 'cash_flow_ratio': 0.0754},
+            {'rank': 2, 'zip': 34233, 'avg_assessed': 420000, 'est_annual_rent': 26400, 'cash_flow_ratio': 0.0628}
+        ]),
+        'zip_price_trends': pd.DataFrame([
+            {'zip': 34231, 'price_now': 450000, 'price_prior': 420000, 'yoy_change': 0.071, 'sales_volume': 120}
+        ]),
+        'assessment_ratio': pd.DataFrame([
+            {'zip': 34231, 'median_ratio': 1.15, 'meaning': 'Stable/Hot (above assessed)'},
+            {'zip': 34233, 'median_ratio': 0.92, 'meaning': 'Market cooling (below assessed)'}
+        ]),
+        'profitable_flips': pd.DataFrame([
+            {'account': '123456', 'first_sale_date': 'Aug 12', 'first_sale_price': 250000, 'second_sale_date': 'Feb 05', 'second_sale_price': 385000, 'markup_pct': 0.54, 'outcome': 'PROFITABLE'}
+        ]),
+        'loss_flips': pd.DataFrame([
+            {'account': '789012', 'first_sale_date': 'Sep 10', 'first_sale_price': 400000, 'second_sale_date': 'Jan 20', 'second_sale_price': 380000, 'markup_pct': -0.05, 'outcome': 'LOSS'}
+        ]),
+        'flip_summary': '2 total — 1 profitable, 1 loss',
+        'investor_activity': pd.DataFrame([
+            {'zip': 34231, 'total_sales': 250, 'investor_share': 0.38}
+        ]),
     }
     
     mock_stats = {
-        'zillow_status': 'FAILED',
-        'redfin_status': 'FAILED',
+        'zillow_status': 'OK',
+        'redfin_status': 'OK',
         'scpa_status': 'OK',
-        'execution_time': '0s'
+        'execution_time': '12.4s'
     }
     
-    deliver_report(mock_results, mock_stats, is_degraded=True)
+    html = render_email(mock_results, mock_stats)
+    with open("test_report.html", "w", encoding="utf-8") as f:
+        f.write(html)
+    print("Created test_report.html")
