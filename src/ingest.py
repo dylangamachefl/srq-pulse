@@ -127,7 +127,15 @@ def check_redfin_inbox() -> dict:
     Check if fresh manual CSVs exist in data/inbox/.
     
     This is the fallback for when Tableau automation breaks.
-    User manually downloads 6 CSVs and drops them here.
+    User manually downloads 6 CSVs from Redfin and drops them here.
+    
+    Redfin download names (lowercase, with spaces):
+    - median sale price.csv
+    - homes sold.csv
+    - new listings.csv
+    - days to close.csv
+    - months of supply.csv (or weeks of supply.csv)
+    - average sale to list ratio.csv
     
     Returns:
         dict: Map of metric name -> file path, or None if incomplete/stale
@@ -147,6 +155,16 @@ def check_redfin_inbox() -> dict:
         "avg_sale_to_list": None
     }
     
+    # Map metric keys to possible file name patterns (Redfin uses these)
+    name_patterns = {
+        "median_sale_price": ["median sale price", "median_sale_price"],
+        "homes_sold": ["homes sold", "homes_sold"],
+        "new_listings": ["new listings", "new_listings"],
+        "days_to_close": ["days to close", "days_to_close"],
+        "weeks_of_supply": ["weeks of supply", "months of supply", "weeks_of_supply"],  # Redfin inconsistency!
+        "avg_sale_to_list": ["average sale to list", "avg sale to list", "sale to list ratio"]
+    }
+    
     for f in INBOX.iterdir():
         if not f.suffix == ".csv":
             continue
@@ -158,10 +176,16 @@ def check_redfin_inbox() -> dict:
             continue
         
         # Match file name to required metrics
-        fname_lower = f.name.lower()
-        for key in required.keys():
-            if key.replace("_", "") in fname_lower.replace("_", ""):
+        fname_lower = f.name.lower().replace("_", " ")  # Normalize for matching
+        
+        for key, patterns in name_patterns.items():
+            if required[key] is not None:
+                continue  # Already found
+            
+            # Check if any pattern matches
+            if any(pattern in fname_lower for pattern in patterns):
                 required[key] = str(f)
+                logger.info(f"  Matched {f.name} -> {key}")
                 break
     
     # Check if we have all 6 files
