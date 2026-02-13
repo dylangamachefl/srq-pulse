@@ -104,11 +104,14 @@ def metric_price_pressure_index(redfin_dir: Path) -> pd.DataFrame:
         merged = merged.sort_values('Period End', ascending=False).head(4).copy()
         merged = merged.sort_values('Period End') # Sort back chronologically for delta
         
-        # Calculate WoW price delta
-        merged['price_delta'] = merged['Median Sale Price'].diff()
+        # Calculate WoW price delta as percentage change
+        merged['price_delta'] = merged['Median Sale Price'].pct_change()
         
         # Calculate signal
         def get_price_signal(row):
+            if pd.isna(row['price_delta']):
+                return "INITIALIZING"
+            
             price_trend = "DOWN" if row['price_delta'] < 0 else "UP"
             ratio = row['Average Sale To List Ratio']
             if ratio > 1.0:
@@ -395,7 +398,14 @@ def run_transformation() -> dict:
         county_dir = Path("data/county")
         parcels_df = pd.read_csv(county_dir / "county_parcels.csv", low_memory=False)
         sales_df = pd.read_csv(county_dir / "county_sales.csv", low_memory=False)
-        logger.info(f"Loaded {len(parcels_df)} parcels and {len(sales_df)} sales")
+        
+        # Filter out nominal/non-arm's-length transfers (e.g., $100 deeds to Trusts)
+        # These are usually not market sales and skew flip detection.
+        before_count = len(sales_df)
+        sales_df = sales_df[sales_df['SalePrice'] > 10000].copy()
+        logger.info(f"Filtered {before_count - len(sales_df)} nominal transfers (sales < $10k)")
+        
+        logger.info(f"Loaded {len(parcels_df)} parcels and {len(sales_df)} valid market sales")
     except FileNotFoundError:
         logger.warning("County data not found - some metrics will be skipped")
         parcels_df = pd.DataFrame()
