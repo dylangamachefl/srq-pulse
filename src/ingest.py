@@ -66,21 +66,19 @@ def ingest_zillow_data() -> bool:
     try:
         logger.info("Downloading Zillow ZHVI (Home Value Index)...")
         
-        # ZHVI: All Homes (SFR, Condo/Co-op) Time Series, Smoothed, Seasonally Adjusted
-        # TODO: Project owner - provide the actual download URL from zillow.com/research/data/
-        ZHVI_URL = "https://files.zillowstatic.com/research/public_csvs/zhvi/Zip_zhvi_uc_sfrcondo_tier_0.0_0.33_sm_sa_month.csv"
+        # ZHVI: County-level, Mid-Tier Homes (SFR, Condo/Co-op), Smoothed, Seasonally Adjusted
+        ZHVI_URL = "https://files.zillowstatic.com/research/public_csvs/zhvi/County_zhvi_uc_sfrcondo_tier_0.33_0.67_sm_sa_month.csv"
         
         response = requests.get(ZHVI_URL, timeout=120)
         response.raise_for_status()
         
         logger.info(f"Downloaded ZHVI ({len(response.content) / 1024 / 1024:.2f} MB)")
         
-        # Load and filter to Sarasota zips
+        # Load and filter to Sarasota County
         zhvi_df = pd.read_csv(io.StringIO(response.text), low_memory=False)
         zhvi_df = zhvi_df[
             (zhvi_df['StateName'] == 'FL') & 
-            (zhvi_df['City'] == 'Sarasota') &
-            (zhvi_df['RegionName'].isin(SARASOTA_ZIPS))
+            (zhvi_df['RegionName'] == 'Sarasota County')
         ].copy()
         
         # Save to data directory
@@ -92,20 +90,19 @@ def ingest_zillow_data() -> bool:
         # ZORI: All Homes Plus Multifamily Time Series, Smoothed
         logger.info("Downloading Zillow ZORI (Observed Rent Index)...")
         
-        # TODO: Project owner - provide the actual download URL from zillow.com/research/data/
-        ZORI_URL = "https://files.zillowstatic.com/research/public_csvs/zori/Zip_ZORI_AllHomesPlusMultifamily_Smoothed.csv"
+        # ZORI: County-level, All Homes Plus Multifamily, Smoothed
+        ZORI_URL = "https://files.zillowstatic.com/research/public_csvs/zori/County_zori_uc_sfrcondomfr_sm_month.csv"
         
         response = requests.get(ZORI_URL, timeout=120)
         response.raise_for_status()
         
         logger.info(f"Downloaded ZORI ({len(response.content) / 1024 / 1024:.2f} MB)")
         
-        # Load and filter to Sarasota zips
+        # Load and filter to Sarasota County
         zori_df = pd.read_csv(io.StringIO(response.text), low_memory=False)
         zori_df = zori_df[
             (zori_df['StateName'] == 'FL') & 
-            (zori_df['City'] == 'Sarasota') &
-            (zori_df['RegionName'].isin(SARASOTA_ZIPS))
+            (zori_df['RegionName'] == 'Sarasota County')
         ].copy()
         
         # Save to data directory
@@ -240,7 +237,8 @@ def ingest_redfin_data() -> bool:
             dest_path = redfin_dir / f"{metric_name}.csv"
             
             # Read and re-save to standardize format
-            df = pd.read_csv(inbox_path)
+            # Tableau exports CSVs as UTF-16 with BOM
+            df = pd.read_csv(inbox_path, encoding='utf-16')
             df.to_csv(dest_path, index=False)
             logger.info(f"  ✅ Copied {metric_name}.csv from inbox")
         
