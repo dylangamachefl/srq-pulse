@@ -36,7 +36,7 @@ def manage_history_state(metrics_data: dict) -> bool:
     """
     Manage rolling 4-week history with sanity checks (V4 weekly cadence).
     
-    This is critical - the history CSV is our "database". A corrupted
+    This is critical - the history JSON is our "database". A corrupted
     commit breaks all future runs.
     
     Args:
@@ -47,20 +47,16 @@ def manage_history_state(metrics_data: dict) -> bool:
     """
     logger.info("Managing history state...")
     
-    data_dir = Path("data")
-    data_dir.mkdir(exist_ok=True)
+    history_dir = Path("data/history")
+    history_dir.mkdir(parents=True, exist_ok=True)
     
     today = datetime.now().strftime("%Y%m%d")
-    yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y%m%d")
-    two_days_ago = (datetime.now() - timedelta(days=2)).strftime("%Y%m%d")
     
-    # Paths
-    history_today = data_dir / f"history_{today}.csv"
-    history_yesterday = data_dir / f"history_{yesterday}.csv"
-    history_general = data_dir / "history.csv"
+    # Paths (V4: Only use JSON)
+    history_today = history_dir / f"history_{today}.json"
+    history_latest = history_dir / "history.json"
     
-    # Save today's state (V4: save metrics summary, not raw listings)
-    # For now, just create a simple marker file since we're doing market-level analytics
+    # Save today's state
     import json
     
     metrics_summary = {
@@ -71,7 +67,7 @@ def manage_history_state(metrics_data: dict) -> bool:
     with open(history_today, 'w') as f:
         json.dump(metrics_summary, f, indent=2)
     
-    with open(history_general, 'w') as f:
+    with open(history_latest, 'w') as f:
         json.dump(metrics_summary, f, indent=2)
     
     logger.info(f"Saved metrics summary to {history_today}")
@@ -84,7 +80,7 @@ def manage_history_state(metrics_data: dict) -> bool:
     logger.info(f"✅ Sanity check passed: Generated {len(metrics_data)} metrics")
     
     # Clean up old history files (keep only last 4 weeks)
-    for old_file in data_dir.glob("history_*.csv"):
+    for old_file in history_dir.glob("history_*.json"):
         file_date_str = old_file.stem.replace("history_", "")
         if len(file_date_str) == 8 and file_date_str.isdigit():
             try:
@@ -92,20 +88,6 @@ def manage_history_state(metrics_data: dict) -> bool:
                 days_old = (datetime.now() - file_date).days
                 
                 if days_old > 28:  # V4: 4 weeks instead of 3 days
-                    old_file.unlink()
-                    logger.info(f"Cleaned up old history: {old_file.name}")
-            except ValueError:
-                pass
-    
-    # Also clean up old .json history files
-    for old_file in data_dir.glob("history_*.json"):
-        file_date_str = old_file.stem.replace("history_", "")
-        if len(file_date_str) == 8 and file_date_str.isdigit():
-            try:
-                file_date = datetime.strptime(file_date_str, "%Y%m%d")
-                days_old = (datetime.now() - file_date).days
-                
-                if days_old > 28:
                     old_file.unlink()
                     logger.info(f"Cleaned up old history: {old_file.name}")
             except ValueError:

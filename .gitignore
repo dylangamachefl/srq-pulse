@@ -4,6 +4,10 @@ __pycache__/
 *.tmp
 data/*.zip
 data/errors.log
-data/inbox/*.csv
 data/redfin/*.csv
-# Keep history_*.csv, county_*.csv, zillow_*.csv tracked for state management
+
+# Track project memory and state
+!data/history/*.json
+!data/county/*.csv
+!data/zillow/*.csv
+!data/redfin/*.csv

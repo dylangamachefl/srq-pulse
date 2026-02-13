@@ -82,8 +82,9 @@ def ingest_zillow_data() -> bool:
         ].copy()
         
         # Save to data directory
-        Path("data").mkdir(exist_ok=True)
-        zhvi_path = Path("data/zillow_zhvi.csv")
+        zillow_dir = Path("data/zillow")
+        zillow_dir.mkdir(parents=True, exist_ok=True)
+        zhvi_path = zillow_dir / "zillow_zhvi.csv"
         zhvi_df.to_csv(zhvi_path, index=False)
         logger.info(f"✅ Saved {len(zhvi_df)} ZHVI records to {zhvi_path}")
         
@@ -106,7 +107,7 @@ def ingest_zillow_data() -> bool:
         ].copy()
         
         # Save to data directory
-        zori_path = Path("data/zillow_zori.csv")
+        zori_path = zillow_dir / "zillow_zori.csv"
         zori_df.to_csv(zori_path, index=False)
         logger.info(f"✅ Saved {len(zori_df)} ZORI records to {zori_path}")
         
@@ -119,9 +120,9 @@ def ingest_zillow_data() -> bool:
         return False
 
 
-def check_redfin_inbox() -> dict:
+def check_redfin_existing() -> dict:
     """
-    Check if fresh manual CSVs exist in data/inbox/.
+    Check if fresh manual CSVs exist in data/redfin/.
     
     This is the fallback for when Tableau automation breaks.
     User manually downloads 6 CSVs from Redfin and drops them here.
@@ -137,10 +138,10 @@ def check_redfin_inbox() -> dict:
     Returns:
         dict: Map of metric name -> file path, or None if incomplete/stale
     """
-    INBOX = Path("data/inbox")
+    REDFIN_DIR = Path("data/redfin")
     MAX_AGE = timedelta(days=7)
     
-    if not INBOX.exists():
+    if not REDFIN_DIR.exists():
         return None
     
     required = {
@@ -162,7 +163,7 @@ def check_redfin_inbox() -> dict:
         "avg_sale_to_list": ["average sale to list", "avg sale to list", "sale to list ratio"]
     }
     
-    for f in INBOX.iterdir():
+    for f in REDFIN_DIR.iterdir():
         if not f.suffix == ".csv":
             continue
         
@@ -187,11 +188,11 @@ def check_redfin_inbox() -> dict:
     
     # Check if we have all 6 files
     if all(v is not None for v in required.values()):
-        logger.info(f"✅ Found all 6 Redfin CSVs in inbox (< 7 days old)")
+        logger.info(f"✅ Found all 6 Redfin CSVs in data/redfin/ (< 7 days old)")
         return required
     else:
         missing = [k for k, v in required.items() if v is None]
-        logger.info(f"Inbox incomplete - missing: {missing}")
+        logger.info(f"Redfin data directory incomplete - missing: {missing}")
         return None
 
 
@@ -215,7 +216,7 @@ def ingest_redfin_via_playwright() -> bool:
 
 def ingest_redfin_data() -> bool:
     """
-    Dual-path Redfin ingestion: inbox fallback → Playwright automation.
+    Dual-path Redfin ingestion: existing data check → Playwright automation.
     
     Returns:
         bool: True if successful, False if failed
@@ -224,33 +225,40 @@ def ingest_redfin_data() -> bool:
     
     logger.info("Starting Redfin data ingestion (dual-path)...")
     
-    # Path 1: Check for manual CSVs in inbox
-    inbox_files = check_redfin_inbox()
-    if inbox_files is not None:
-        logger.info("Using manual CSVs from inbox - skipping Playwright")
+    # Path 1: Check for manual CSVs already in data/redfin/
+    existing_files = check_redfin_existing()
+    if existing_files is not None:
+        logger.info("Using existing CSVs in data/redfin/ - skipping Playwright")
         
-        # Copy inbox files to data/redfin/ with standardized names
-        redfin_dir = Path("data/redfin")
-        redfin_dir.mkdir(exist_ok=True)
-        
-        for metric_name, inbox_path in inbox_files.items():
-            dest_path = redfin_dir / f"{metric_name}.csv"
-            
-            # Read and re-save to standardize format
-            # Tableau exports CSVs as UTF-16 with Tab separator
-            df = pd.read_csv(inbox_path, encoding='utf-16', sep='\t')
-            # Save as standard comma-separated UTF-8 for simpler processing later
-            df.to_csv(dest_path, index=False, encoding='utf-8')
-            logger.info(f"  ✅ Copied {metric_name}.csv from inbox")
+        # Ensure files are standardized (UTF-8)
+        # Tableau exports often come as UTF-16/Tab-separated
+        for metric_name, file_path in existing_files.items():
+            try:
+                # Test read with common Tableau format
+                path_obj = Path(file_path)
+                # If it's already a standardized file, we don't want to break it
+                # But we need to ensure it's in a format transform.py can read
+                try:
+                    df = pd.read_csv(path_obj, encoding='utf-16', sep='\t')
+                    # If this succeeds, it WAS a Tableau export, so standardize it
+                    df.to_csv(path_obj, index=False, encoding='utf-8')
+                    logger.info(f"  ✅ Standardized {metric_name}.csv from Tableau format")
+                except:
+                    # If it fails, maybe it's already a standard CSV
+                    # Just verify it can be read
+                    pd.read_csv(path_obj)
+                    logger.info(f"  ✅ Verified {metric_name}.csv is standard format")
+            except Exception as e:
+                logger.warning(f"  ⚠️ Could not verify/standardize {metric_name}.csv: {e}")
         
         return True
     
     # Path 2: Run Playwright automation
-    logger.info("Inbox empty/stale - attempting Playwright automation...")
+    logger.info("data/redfin/ empty or stale - attempting Playwright automation...")
     playwright_success = ingest_redfin_via_playwright()
     
     if not playwright_success:
-        error_msg = "Redfin ingestion failed - both inbox and Playwright unavailable"
+        error_msg = "Redfin ingestion failed - both existing data and Playwright unavailable"
         log_error(error_msg)
         REDFIN_FAILED = True
         return False
@@ -315,9 +323,10 @@ def ingest_county_data() -> bool:
         sales_df = sales_df[sales_df['DeedType'] == 'WD'].copy()
         
         # Save processed data
-        Path("data").mkdir(exist_ok=True)
-        parcels_path = Path("data/county_parcels.csv")
-        sales_path = Path("data/county_sales.csv")
+        county_dir = Path("data/county")
+        county_dir.mkdir(parents=True, exist_ok=True)
+        parcels_path = county_dir / "county_parcels.csv"
+        sales_path = county_dir / "county_sales.csv"
         
         parcels_df.to_csv(parcels_path, index=False)
         sales_df.to_csv(sales_path, index=False)

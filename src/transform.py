@@ -386,13 +386,15 @@ def run_transformation() -> dict:
     
     # Load input data
     redfin_dir = Path("data/redfin")
-    zillow_zhvi_path = Path("data/zillow_zhvi.csv")
-    zillow_zori_path = Path("data/zillow_zori.csv")
+    zillow_dir = Path("data/zillow")
+    zillow_zhvi_path = zillow_dir / "zillow_zhvi.csv"
+    zillow_zori_path = zillow_dir / "zillow_zori.csv"
     
     # Load county data
     try:
-        parcels_df = pd.read_csv("data/county_parcels.csv", low_memory=False)
-        sales_df = pd.read_csv("data/county_sales.csv", low_memory=False)
+        county_dir = Path("data/county")
+        parcels_df = pd.read_csv(county_dir / "county_parcels.csv", low_memory=False)
+        sales_df = pd.read_csv(county_dir / "county_sales.csv", low_memory=False)
         logger.info(f"Loaded {len(parcels_df)} parcels and {len(sales_df)} sales")
     except FileNotFoundError:
         logger.warning("County data not found - some metrics will be skipped")
