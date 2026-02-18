@@ -32,7 +32,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def manage_history_state(metrics_data: dict) -> bool:
+def manage_history_state(metrics_data: dict, html_report: str = None) -> bool:
     """
     Manage rolling 4-week history with sanity checks (V4 weekly cadence).
     
@@ -41,6 +41,7 @@ def manage_history_state(metrics_data: dict) -> bool:
     
     Args:
         metrics_data: Dict of metric results from transformation
+        html_report: Optional HTML content of the report to archive
         
     Returns:
         bool: True if state management succeeded
@@ -55,6 +56,18 @@ def manage_history_state(metrics_data: dict) -> bool:
     # Paths (V4: Only use JSON)
     history_today = history_dir / f"history_{today}.json"
     history_latest = history_dir / "history.json"
+    
+    # Report paths
+    report_today = history_dir / f"report_{today}.html"
+    report_latest = history_dir / "report_latest.html"
+    
+    # Save HTML report if provided
+    if html_report:
+        with open(report_today, 'w', encoding='utf-8') as f:
+            f.write(html_report)
+        with open(report_latest, 'w', encoding='utf-8') as f:
+            f.write(html_report)
+        logger.info(f"Saved HTML report to {report_today}")
     
     # Save today's state
     import json
@@ -150,26 +163,27 @@ def main():
         deliver_report({}, stats, is_degraded=True)
         return 1
     
-    # Phase 3: State Management
-    logger.info("\n💾 PHASE 3: STATE MANAGEMENT")
+    # Phase 3: Delivery
+    logger.info("\n📧 PHASE 3: DELIVERY")
+    stats = calculate_stats(ingestion_success, start_time)
+    
+    html_report = None
     try:
-        state_success = manage_history_state(results)
+        success, html_report = deliver_report(results, stats, is_degraded=False)
+    except Exception as e:
+        logger.error(f"Delivery failed: {type(e).__name__}: {str(e)}")
+        return 1
+    
+    # Phase 4: State Management
+    logger.info("\n💾 PHASE 4: STATE MANAGEMENT")
+    try:
+        state_success = manage_history_state(results, html_report)
         
         if not state_success:
             logger.error("State management sanity check failed - aborting")
             return 1
     except Exception as e:
         logger.error(f"State management failed: {type(e).__name__}: {str(e)}")
-        return 1
-    
-    # Phase 4: Delivery
-    logger.info("\n📧 PHASE 4: DELIVERY")
-    stats = calculate_stats(ingestion_success, start_time)
-    
-    try:
-        deliver_report(results, stats, is_degraded=False)
-    except Exception as e:
-        logger.error(f"Delivery failed: {type(e).__name__}: {str(e)}")
         return 1
     
     # Success

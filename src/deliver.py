@@ -583,7 +583,7 @@ def deliver_report(results: dict, stats: dict, is_degraded: bool = False):
     else:
         logger.error("❌ Failed to deliver report")
     
-    return success
+    return success, html_content
 
 
 if __name__ == "__main__":

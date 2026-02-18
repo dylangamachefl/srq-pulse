@@ -5,9 +5,11 @@ __pycache__/
 data/*.zip
 data/errors.log
 data/redfin/*.csv
+.claude/
 
 # Track project memory and state
 !data/history/*.json
+!data/history/*.html
 !data/county/*.csv
 !data/zillow/*.csv
 !data/redfin/*.csv

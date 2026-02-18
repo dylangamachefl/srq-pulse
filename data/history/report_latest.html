@@ -1,0 +1,753 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+ <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 8px 8px 0 0;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 28px;
+        }
+        .header p {
+            margin: 10px 0 0 0;
+            opacity: 0.9;
+        }
+        .content {
+            background: white;
+            padding: 30px;
+            border-radius: 0 0 8px 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .metric-section {
+            margin: 30px 0;
+            border-left: 4px solid #667eea;
+            padding-left: 20px;
+        }
+        .metric-section h2 {
+            margin-top: 0;
+            color: #667eea;
+            font-size: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+            font-size: 14px;
+        }
+        th {
+            background-color: #f8f9fa;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            border-bottom: 2px solid #dee2e6;
+        }
+        td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #dee2e6;
+        }
+        tr:hover {
+            background-color: #f8f9fa;
+        }
+        .footer {
+            margin-top: 30px;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            font-size: 13px;
+            color: #666;
+        }
+        .footer strong {
+            color: #333;
+        }
+        .no-data {
+            color: #999;
+            font-style: italic;
+            padding: 20px;
+            text-align: center;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+        }
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .badge-success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .badge-warning {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        .badge-danger {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        .degraded-alert {
+            background-color: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .degraded-alert h2 {
+            margin-top: 0;
+            color: #856404;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🏡 SRQ Pulse</h1>
+        <p>Week of February 18, 2026</p>
+    </div>
+    
+    <div class="content">
+        
+        
+        <div class="metric-section">
+            <h2>📉 Price Pressure Index</h2>
+            <p>Median sale price + sale-to-list ratio trends (last 4 weeks).</p>
+            
+            <table>
+                <thead>
+                     <tr>
+                        <th>Week</th>
+                        <th>Median Price</th>
+                        <th>WoW Δ</th>
+                        <th>YoY Δ</th>
+                        <th>Sale-to-List</th>
+                        <th>Signal</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    
+                    <tr>
+                        <td>Jan 18</td>
+                        <td>$416,875</td>
+                        <td>+nan%</td>
+                        <td>-3.8% YoY</td>
+                        <td>95.79%</td>
+                        <td>BUYERS LEVERAGE (Ratio: 95.8%)</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>Jan 25</td>
+                        <td>$418,500</td>
+                        <td>+0.4%</td>
+                        <td>-4.2% YoY</td>
+                        <td>95.16%</td>
+                        <td>BUYERS LEVERAGE (Ratio: 95.2%, Price UP)</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>Feb 01</td>
+                        <td>$418,250</td>
+                        <td>-0.1%</td>
+                        <td>-4.8% YoY</td>
+                        <td>95.02%</td>
+                        <td>BUYERS LEVERAGE (Ratio: 95.0%, Price DOWN)</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>Feb 08</td>
+                        <td>$418,250</td>
+                        <td>+0.0%</td>
+                        <td>-6.5% YoY</td>
+                        <td>95.26%</td>
+                        <td>BUYERS LEVERAGE (Ratio: 95.3%, Price UP)</td>
+                    </tr>
+                    
+                </tbody>
+            </table>
+            
+        </div>
+        
+        <div class="metric-section">
+            <h2>📦 Inventory & Absorption</h2>
+            <p>Weeks of supply + new listings vs homes sold (last 4 weeks).</p>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Week</th>
+                        <th>Weeks of Supply</th>
+                        <th>YoY Δ</th>
+                        <th>New Listings</th>
+                        <th>Homes Sold</th>
+                        <th>Market State</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    
+                    <tr>
+                        <td>Feb 08</td>
+                        <td>31.0</td>
+                        <td>anomaly YoY</td>
+                        <td>448</td>
+                        <td>194</td>
+                        <td>BUYERS MARKET (Heavy Supply)</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>Feb 01</td>
+                        <td>30.0</td>
+                        <td>anomaly YoY</td>
+                        <td>436</td>
+                        <td>196</td>
+                        <td>BUYERS MARKET (Heavy Supply)</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>Jan 25</td>
+                        <td>31.0</td>
+                        <td>anomaly YoY</td>
+                        <td>396</td>
+                        <td>189</td>
+                        <td>BUYERS MARKET (Heavy Supply)</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>Jan 18</td>
+                        <td>31.0</td>
+                        <td>anomaly YoY</td>
+                        <td>333</td>
+                        <td>184</td>
+                        <td>BUYERS MARKET (Heavy Supply)</td>
+                    </tr>
+                    
+                </tbody>
+            </table>
+            
+        </div>
+        
+        <div class="metric-section">
+            <h2>📈 Cash Flow Trend (County-Level)</h2>
+            <p>ZORI / ZHVI ratio over the last 6 months.</p>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Month</th>
+                        <th>ZHVI</th>
+                        <th>ZORI</th>
+                        <th>Annual Ratio</th>
+                        <th>Direction</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    
+                    <tr>
+                        <td>Aug 2025</td>
+                        <td>$403,635</td>
+                        <td>$2,127/mo</td>
+                        <td>6.32%</td>
+                        <td>→ Flat</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>Sep 2025</td>
+                        <td>$399,849</td>
+                        <td>$2,131/mo</td>
+                        <td>6.39%</td>
+                        <td>↑ Expanding</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>Oct 2025</td>
+                        <td>$397,014</td>
+                        <td>$2,135/mo</td>
+                        <td>6.45%</td>
+                        <td>↑ Expanding</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>Nov 2025</td>
+                        <td>$395,015</td>
+                        <td>$2,136/mo</td>
+                        <td>6.49%</td>
+                        <td>↑ Expanding</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>Dec 2025</td>
+                        <td>$394,033</td>
+                        <td>$2,133/mo</td>
+                        <td>6.50%</td>
+                        <td>↑ Expanding</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>Jan 2026</td>
+                        <td>$393,811</td>
+                        <td>$2,125/mo</td>
+                        <td>6.48%</td>
+                        <td>↓ Compressing</td>
+                    </tr>
+                    
+                </tbody>
+            </table>
+            
+        </div>
+        
+        <div class="metric-section">
+            <h2>💰 Cash Flow Zones</h2>
+            <p>Sarasota zip codes ranked by monthly rent / home value ratio.</p>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Rank</th>
+                        <th>Zip</th>
+                        <th>Avg Assessed (JUST)</th>
+                        <th>Est. Annual Rent</th>
+                        <th>Cash Flow Ratio</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    
+                    <tr>
+                        <td>1</td>
+                        <td>34235</td>
+                        <td>$337,372</td>
+                        <td>$25,500</td>
+                        <td><span class="badge badge-success">7.6%</span></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>2</td>
+                        <td>34232</td>
+                        <td>$409,473</td>
+                        <td>$25,500</td>
+                        <td><span class="badge badge-success">6.2%</span></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>3</td>
+                        <td>34237</td>
+                        <td>$432,743</td>
+                        <td>$25,500</td>
+                        <td><span class="badge badge-success">5.9%</span></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>4</td>
+                        <td>34234</td>
+                        <td>$445,326</td>
+                        <td>$25,500</td>
+                        <td><span class="badge badge-success">5.7%</span></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>5</td>
+                        <td>34233</td>
+                        <td>$479,991</td>
+                        <td>$25,500</td>
+                        <td><span class="badge badge-success">5.3%</span></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>6</td>
+                        <td>34231</td>
+                        <td>$525,668</td>
+                        <td>$25,500</td>
+                        <td><span class="badge badge-success">4.9%</span></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>7</td>
+                        <td>34238</td>
+                        <td>$534,648</td>
+                        <td>$25,500</td>
+                        <td><span class="badge badge-success">4.8%</span></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>8</td>
+                        <td>34241</td>
+                        <td>$568,854</td>
+                        <td>$25,500</td>
+                        <td><span class="badge badge-success">4.5%</span></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>9</td>
+                        <td>34229</td>
+                        <td>$606,567</td>
+                        <td>$25,500</td>
+                        <td><span class="badge badge-success">4.2%</span></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>10</td>
+                        <td>34239</td>
+                        <td>$890,112</td>
+                        <td>$25,500</td>
+                        <td><span class="badge badge-success">2.9%</span></td>
+                    </tr>
+                    
+                </tbody>
+            </table>
+            
+        </div>
+
+        <div class="metric-section">
+            <h2>📍 Zip-Level Price Trends</h2>
+            <p>Median sale price per zip (Last 12 Months vs Prior Year).</p>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Zip</th>
+                        <th>Median Price (Current)</th>
+                        <th>Median Price (Prior)</th>
+                        <th>YoY Change</th>
+                        <th>Sales Volume</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    
+                    <tr>
+                        <td>34242*</td>
+                        <td>$1,650,000</td>
+                        <td>$2,275,000</td>
+                        <td><span class="badge badge-success">-27.5%</span></td>
+                        <td>27</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>34234</td>
+                        <td>$305,000</td>
+                        <td>$359,300</td>
+                        <td><span class="badge badge-success">-15.1%</span></td>
+                        <td>227</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>34232</td>
+                        <td>$220,000</td>
+                        <td>$255,000</td>
+                        <td><span class="badge badge-success">-13.7%</span></td>
+                        <td>89</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>34236</td>
+                        <td>$1,299,750</td>
+                        <td>$1,200,000</td>
+                        <td><span class="badge badge-warning">+8.3%</span></td>
+                        <td>494</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>34239</td>
+                        <td>$1,300,000</td>
+                        <td>$870,000</td>
+                        <td><span class="badge badge-warning">+49.4%</span></td>
+                        <td>169</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>34237</td>
+                        <td>$566,950</td>
+                        <td>$306,000</td>
+                        <td><span class="badge badge-warning">+85.3%</span></td>
+                        <td>370</td>
+                    </tr>
+                    
+                </tbody>
+            </table>
+            
+        </div>
+
+        <div class="metric-section">
+            <h2>📊 Assessment Ratio by Zip</h2>
+            <p>Sale Price vs County Appraised Value. Ratios below 1.0 indicate cooling.</p>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Zip</th>
+                        <th>Median Ratio</th>
+                        <th>Meaning</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    
+                    <tr>
+                        <td>34232</td>
+                        <td>1.15</td>
+                        <td>Stable/Hot (above assessed)</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>34237</td>
+                        <td>1.22</td>
+                        <td>Stable/Hot (above assessed)</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>34234</td>
+                        <td>1.22</td>
+                        <td>Stable/Hot (above assessed)</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>34236</td>
+                        <td>1.22</td>
+                        <td>Stable/Hot (above assessed)</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>34243</td>
+                        <td>1.27</td>
+                        <td>Stable/Hot (above assessed)</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>34242</td>
+                        <td>1.29</td>
+                        <td>Stable/Hot (above assessed)</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>34239</td>
+                        <td>1.30</td>
+                        <td>Stable/Hot (above assessed)</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>34235</td>
+                        <td>1.47</td>
+                        <td>Stable/Hot (above assessed)</td>
+                    </tr>
+                    
+                </tbody>
+            </table>
+            
+        </div>
+        
+        <div class="metric-section">
+            <h2>🔄 Flip Activity (Last 6 Months)</h2>
+            <p><strong>219 total — 158 profitable, 61 loss</strong></p>
+            
+            
+            <h3 style="color: #2e7d32; margin-top: 15px;">Recent Profitable Flips</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Account</th>
+                        <th>Bought for</th>
+                        <th>Sold for</th>
+                        <th>Markup</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    
+                    <tr>
+                        <td>9044021</td>
+                        <td>$4,635,600 (Dec 04)</td>
+                        <td>$6,000,000 (Oct 03)</td>
+                        <td><span class="badge badge-success">+29.4%</span></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>9044028</td>
+                        <td>$4,294,000 (Dec 05)</td>
+                        <td>$4,500,000 (Nov 17)</td>
+                        <td><span class="badge badge-success">+4.8%</span></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>12051053</td>
+                        <td>$1,650,000 (Feb 28)</td>
+                        <td>$1,700,000 (Jan 30)</td>
+                        <td><span class="badge badge-success">+3.0%</span></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>19110032</td>
+                        <td>$250,000 (Mar 18)</td>
+                        <td>$400,000 (Sep 05)</td>
+                        <td><span class="badge badge-success">+60.0%</span></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>25060095</td>
+                        <td>$126,000 (May 28)</td>
+                        <td>$139,900 (Jan 05)</td>
+                        <td><span class="badge badge-success">+11.0%</span></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>25110096</td>
+                        <td>$89,900 (Jul 14)</td>
+                        <td>$92,500 (Dec 11)</td>
+                        <td><span class="badge badge-success">+2.9%</span></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>25122039</td>
+                        <td>$193,500 (Apr 24)</td>
+                        <td>$209,000 (Dec 22)</td>
+                        <td><span class="badge badge-success">+8.0%</span></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>27160044</td>
+                        <td>$283,200 (May 16)</td>
+                        <td>$460,000 (Dec 19)</td>
+                        <td><span class="badge badge-success">+62.4%</span></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>29060077</td>
+                        <td>$129,700 (Nov 14)</td>
+                        <td>$138,500 (Nov 14)</td>
+                        <td><span class="badge badge-success">+6.8%</span></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>35121075</td>
+                        <td>$305,000 (Jul 15)</td>
+                        <td>$440,000 (Dec 31)</td>
+                        <td><span class="badge badge-success">+44.3%</span></td>
+                    </tr>
+                    
+                </tbody>
+            </table>
+            
+
+            
+            <h3 style="color: #c62828; margin-top: 15px;">Recent Flips at a Loss</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Account</th>
+                        <th>Bought for</th>
+                        <th>Sold for</th>
+                        <th>Loss</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    
+                    <tr>
+                        <td>4050033</td>
+                        <td>$2,275,000 (Feb 27)</td>
+                        <td>$2,200,000 (Oct 31)</td>
+                        <td><span class="badge badge-danger">-3.3%</span></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>13042008</td>
+                        <td>$1,098,000 (Jul 30)</td>
+                        <td>$987,500 (Feb 05)</td>
+                        <td><span class="badge badge-danger">-10.1%</span></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>17090004</td>
+                        <td>$850,000 (Apr 24)</td>
+                        <td>$675,000 (Sep 03)</td>
+                        <td><span class="badge badge-danger">-20.6%</span></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>34111061</td>
+                        <td>$250,000 (Dec 16)</td>
+                        <td>$220,000 (Nov 24)</td>
+                        <td><span class="badge badge-danger">-12.0%</span></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>56050027</td>
+                        <td>$675,000 (Jun 17)</td>
+                        <td>$525,000 (Dec 30)</td>
+                        <td><span class="badge badge-danger">-22.2%</span></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>61053048</td>
+                        <td>$145,000 (Mar 12)</td>
+                        <td>$138,000 (Sep 02)</td>
+                        <td><span class="badge badge-danger">-4.8%</span></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>64030039</td>
+                        <td>$445,000 (Apr 04)</td>
+                        <td>$300,000 (Dec 17)</td>
+                        <td><span class="badge badge-danger">-32.6%</span></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>70130046</td>
+                        <td>$580,000 (Oct 25)</td>
+                        <td>$556,800 (Sep 08)</td>
+                        <td><span class="badge badge-danger">-4.0%</span></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>75030049</td>
+                        <td>$400,000 (Feb 24)</td>
+                        <td>$400,000 (Jan 05)</td>
+                        <td><span class="badge badge-danger">+0.0%</span></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>75100025</td>
+                        <td>$2,250,000 (Dec 19)</td>
+                        <td>$1,840,000 (Oct 20)</td>
+                        <td><span class="badge badge-danger">-18.2%</span></td>
+                    </tr>
+                    
+                </tbody>
+            </table>
+            
+
+            
+        </div>
+
+        <div class="metric-section">
+            <h2>🏢 Investor Activity by Zip</h2>
+            <p>Likely investor share of total sales (Last 12 Months).</p>
+            
+            <div class="no-data">Investor activity data unavailable</div>
+            
+        </div>
+        
+        
+        
+        <div class="footer">
+            <strong>⚙️ Pipeline Health:</strong><br>
+            <span class="badge-success">Zillow: OK</span> 
+            <span class="badge-success">Redfin: OK</span> 
+            <span class="badge-success">SCPA: OK</span> 
+            <br>
+            Execution Time: 104.8s<br>
+            <br>
+            <em>This report is generated automatically every Monday by a serverless ETL pipeline. Data sourced from Redfin Data Center, Zillow Research, and Sarasota County Property Appraiser.</em>
+        </div>
+    </div>
+</body>
+</html>
