@@ -1,4 +1,4 @@
-# Sarasota Market Pulse (V4 "Market Strategist")
+# Sarasota Market Pulse ("Market Strategist")
 
 **A serverless ETL pipeline designed to ingest structured real estate data from Zillow and Redfin, normalize it against county property appraiser records, and compute market-level intelligence (Price Pressure, Inventory Absorption, Cash Flow Zones) for institutional-grade decision support. Deployed via GitHub Actions for automated weekly execution.**
 
@@ -6,7 +6,7 @@
 
 ## 🎯 Overview
 
-The **Sarasota Market Pulse** automatically monitors the Sarasota, FL market and delivers weekly intelligence reports. Version 4 pivots from individual listing tracking to **market-level strategist analytics**, providing a macro view of inventory, rent yields, and pricing power.
+The **Sarasota Market Pulse** automatically monitors the Sarasota, FL market and delivers weekly intelligence reports. Using **market-level strategist analytics**, providing a macro view of inventory, rent yields, and pricing power.
 
 - **Zillow Research**: Ingests ZHVI (Home Values) and ZORI (Observed Rents) by zip code.
 - **Redfin Data Center**: Tracks weeks of supply, sale-to-list ratios, and absorption rates.
@@ -17,7 +17,7 @@ The **Sarasota Market Pulse** automatically monitors the Sarasota, FL market and
 
 ## 📊 Market Strategist Metrics
 
-V4 implements **5 sophisticated indicator sets**:
+**5 sophisticated indicator sets**:
 
 ### 1. 📉 Price Pressure Index
 **Source:** Redfin  

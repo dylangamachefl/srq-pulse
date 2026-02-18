@@ -1,0 +1,385 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+ <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 8px 8px 0 0;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 28px;
+        }
+        .header p {
+            margin: 10px 0 0 0;
+            opacity: 0.9;
+        }
+        .content {
+            background: white;
+            padding: 30px;
+            border-radius: 0 0 8px 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .metric-section {
+            margin: 30px 0;
+            border-left: 4px solid #667eea;
+            padding-left: 20px;
+        }
+        .metric-section h2 {
+            margin-top: 0;
+            color: #667eea;
+            font-size: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+            font-size: 14px;
+        }
+        th {
+            background-color: #f8f9fa;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            border-bottom: 2px solid #dee2e6;
+        }
+        td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #dee2e6;
+        }
+        tr:hover {
+            background-color: #f8f9fa;
+        }
+        .footer {
+            margin-top: 30px;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            font-size: 13px;
+            color: #666;
+        }
+        .footer strong {
+            color: #333;
+        }
+        .no-data {
+            color: #999;
+            font-style: italic;
+            padding: 20px;
+            text-align: center;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+        }
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .badge-success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .badge-warning {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        .badge-danger {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        .degraded-alert {
+            background-color: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .degraded-alert h2 {
+            margin-top: 0;
+            color: #856404;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🏡 SRQ Pulse</h1>
+        <p>Week of February 13, 2026</p>
+    </div>
+    
+    <div class="content">
+        
+        
+        <div class="metric-section">
+            <h2>📉 Price Pressure Index</h2>
+            <p>Median sale price + sale-to-list ratio trends (last 4 weeks).</p>
+            
+            <table>
+                <thead>
+                     <tr>
+                        <th>Week</th>
+                        <th>Median Price</th>
+                        <th>WoW Δ</th>
+                        <th>YoY Δ</th>
+                        <th>Sale-to-List</th>
+                        <th>Signal</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    
+                    <tr>
+                        <td>Feb 08</td>
+                        <td>$418,250</td>
+                        <td>-2.3%</td>
+                        <td>+4.5% YoY</td>
+                        <td>95.26%</td>
+                        <td>BUYERS LEVERAGE</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>Feb 01</td>
+                        <td>$428,000</td>
+                        <td>+1.2%</td>
+                        <td>+5.1% YoY</td>
+                        <td>96.10%</td>
+                        <td>NEUTRAL</td>
+                    </tr>
+                    
+                </tbody>
+            </table>
+            
+        </div>
+        
+        <div class="metric-section">
+            <h2>📦 Inventory & Absorption</h2>
+            <p>Weeks of supply + new listings vs homes sold (last 4 weeks).</p>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Week</th>
+                        <th>Weeks of Supply</th>
+                        <th>YoY Δ</th>
+                        <th>New Listings</th>
+                        <th>Homes Sold</th>
+                        <th>Market State</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    
+                    <tr>
+                        <td>Feb 08</td>
+                        <td>12.4</td>
+                        <td>+15.0% YoY</td>
+                        <td>450</td>
+                        <td>380</td>
+                        <td>BALANCED MARKET</td>
+                    </tr>
+                    
+                </tbody>
+            </table>
+            
+        </div>
+        
+        <div class="metric-section">
+            <h2>📈 Cash Flow Trend (County-Level)</h2>
+            <p>ZORI / ZHVI ratio over the last 6 months.</p>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Month</th>
+                        <th>ZHVI</th>
+                        <th>ZORI</th>
+                        <th>Annual Ratio</th>
+                        <th>Direction</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    
+                    <tr>
+                        <td>Jan 2026</td>
+                        <td>$450,000</td>
+                        <td>$2,200/mo</td>
+                        <td>5.86%</td>
+                        <td>↑ Expanding</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>Dec 2025</td>
+                        <td>$455,000</td>
+                        <td>$2,180/mo</td>
+                        <td>5.75%</td>
+                        <td>→ Flat</td>
+                    </tr>
+                    
+                </tbody>
+            </table>
+            
+        </div>
+        
+        <div class="metric-section">
+            <h2>💰 Cash Flow Zones</h2>
+            <p>Sarasota zip codes ranked by monthly rent / home value ratio.</p>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Rank</th>
+                        <th>Zip</th>
+                        <th>Avg Assessed (JUST)</th>
+                        <th>Est. Annual Rent</th>
+                        <th>Cash Flow Ratio</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    
+                    <tr>
+                        <td>1</td>
+                        <td>34231</td>
+                        <td>$350,000</td>
+                        <td>$26,400</td>
+                        <td><span class="badge badge-success">7.5%</span></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>2</td>
+                        <td>34233</td>
+                        <td>$420,000</td>
+                        <td>$26,400</td>
+                        <td><span class="badge badge-success">6.3%</span></td>
+                    </tr>
+                    
+                </tbody>
+            </table>
+            
+        </div>
+
+        <div class="metric-section">
+            <h2>📍 Zip-Level Price Trends</h2>
+            <p>Median sale price per zip (Last 12 Months vs Prior Year).</p>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Zip</th>
+                        <th>Median Price (Current)</th>
+                        <th>Median Price (Prior)</th>
+                        <th>YoY Change</th>
+                        <th>Sales Volume</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    
+                    <tr>
+                        <td>34231</td>
+                        <td>$450,000</td>
+                        <td>$420,000</td>
+                        <td><span class="badge badge-warning">+7.1%</span></td>
+                        <td>120</td>
+                    </tr>
+                    
+                </tbody>
+            </table>
+            
+        </div>
+
+        <div class="metric-section">
+            <h2>📊 Assessment Ratio by Zip</h2>
+            <p>Sale Price vs County Appraised Value. Ratios below 1.0 indicate cooling.</p>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Zip</th>
+                        <th>Median Ratio</th>
+                        <th>Meaning</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    
+                    <tr>
+                        <td>34231</td>
+                        <td>1.15</td>
+                        <td>Stable/Hot (above assessed)</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>34233</td>
+                        <td>0.92</td>
+                        <td>Market cooling (below assessed)</td>
+                    </tr>
+                    
+                </tbody>
+            </table>
+            
+        </div>
+        
+        <div class="metric-section">
+            <h2>🔄 Flip Activity (Last 6 Months)</h2>
+            <p><strong>2 total — 1 profitable, 1 loss</strong></p>
+            
+            
+
+            
+
+            
+            <div class="no-data">No flips detected in the last 180 days</div>
+            
+        </div>
+
+        <div class="metric-section">
+            <h2>🏢 Investor Activity by Zip</h2>
+            <p>Likely investor share of total sales (Last 12 Months).</p>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Zip</th>
+                        <th>Total Sales</th>
+                        <th>Investor %</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    
+                    <tr>
+                        <td>34231</td>
+                        <td>250</td>
+                        <td><span class="badge badge-warning">38.0%</span></td>
+                    </tr>
+                    
+                </tbody>
+            </table>
+            
+        </div>
+        
+        
+        
+        <div class="footer">
+            <strong>⚙️ Pipeline Health:</strong><br>
+            <span class="badge-success">Zillow: OK</span> 
+            <span class="badge-success">Redfin: OK</span> 
+            <span class="badge-success">SCPA: OK</span> 
+            <br>
+            Execution Time: 12.4s<br>
+            <br>
+            <em>This report is generated automatically every Monday by a serverless ETL pipeline. Data sourced from Redfin Data Center, Zillow Research, and Sarasota County Property Appraiser.</em>
+        </div>
+    </div>
+</body>
+</html>
