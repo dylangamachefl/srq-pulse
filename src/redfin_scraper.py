@@ -18,8 +18,10 @@ import time
 
 logger = logging.getLogger(__name__)
 
-# Base Tableau URL with tab names mapped to their IDs
-TABLEAU_BASE_URL = "https://public.tableau.com/views/RedfinCOVID-19HousingMarket/NewListings"
+# Base Tableau URL - must use embed params to get the interactive viz directly.
+# The plain /views/ URL now redirects to /app/profile/ wrapper page which lacks
+# the tab navigation and viz controls that the scraper relies on.
+TABLEAU_BASE_URL = "https://public.tableau.com/views/RedfinCOVID-19HousingMarket/NewListings?:embed=y&:showVizHome=no"
 
 # Tab mappings (name -> tab ID for navigation)
 TABS = {
@@ -32,52 +34,89 @@ TABS = {
 }
 
 
+def wait_for_viz_ready(page, timeout: int = 30000):
+    """
+    Wait for Tableau's download button to be visible, indicating the viz is
+    fully rendered and interactive after a tab switch.
+    """
+    try:
+        page.wait_for_selector("button#download", state="visible", timeout=timeout)
+    except Exception:
+        time.sleep(3)
+
+
 def set_filters(page) -> bool:
     """
     Set Region Type to County and Region Name to Sarasota County, FL.
-    
+
     Returns:
         bool: True if successful
     """
     try:
         logger.info("Setting filters...")
-        
-        #1. Region Type: County
-        # Find the combo box with "metro" text and click it
-        region_type_boxes = page.locator("span.tabComboBox").all()
-        for box in region_type_boxes:
-            if "metro" in box.inner_text().lower():
-                box.click()
-                time.sleep(1)
-                
-                # Click "county" option in dropdown
-                county_option = page.locator("a[title='county']").first
-                if county_option.is_visible(timeout=5000):
-                    county_option.click()
-                    time.sleep(2)
-                    logger.info("  ✓ Set Region Type to County")
-                break
-        
+
+        # 1. Region Type: County
+        # aria-labelledby reveals which combo is Region Type (label text = "Region Type")
+        combos = page.locator("span.tabComboBox").all()
+        region_type_box = None
+        for box in combos:
+            label_id = box.get_attribute("aria-labelledby")
+            if label_id:
+                label_el = page.locator(f"#{label_id}").first
+                if label_el.count() and "region type" in label_el.inner_text().lower():
+                    region_type_box = box
+                    break
+        # Fallback: the box whose current text is "metro" is Region Type
+        if region_type_box is None:
+            for box in combos:
+                if box.inner_text().strip().lower() == "metro":
+                    region_type_box = box
+                    break
+
+        if region_type_box:
+            region_type_box.click(timeout=5000)
+            time.sleep(0.5)
+            county_option = page.locator("a[title='county']").first
+            county_option.wait_for(state="visible", timeout=5000)
+            county_option.click()
+            time.sleep(2)  # Tableau re-renders asynchronously after filter change
+            logger.info("  ✓ Set Region Type to County")
+        else:
+            logger.warning("  Could not find Region Type combo box")
+
         # 2. Region Name: Sarasota County, FL
-        # Find combo box with "All Redfin Metros" and click it
-        region_name_boxes = page.locator("span.tabComboBox").all()
-        for box in region_name_boxes:
-            if "all redfin metros" in box.inner_text().lower():
-                box.click()
-                time.sleep(1)
-                
-                # Type in search box
-                search_input = page.locator("input.tab-filterSearchInp").first
-                if search_input.is_visible(timeout=5000):
-                    search_input.fill("Sarasota County, FL")
-                    time.sleep(1)
-                    search_input.press("Enter")
-                    time.sleep(3)  # Wait for dashboard to update
-                    logger.info("  ✓ Set Region Name to Sarasota County, FL")
-                break
-        
+        # Re-query combos after the re-render. When Region Type is "county" the
+        # Region Name dropdown shows checkboxes (no search box) — click directly.
+        combos = page.locator("span.tabComboBox").all()
+        region_name_box = None
+        for box in combos:
+            label_id = box.get_attribute("aria-labelledby")
+            if label_id:
+                label_el = page.locator(f"#{label_id}").first
+                if label_el.count() and "region name" in label_el.inner_text().lower():
+                    region_name_box = box
+                    break
+        # Fallback: box whose text contains "all redfin" or "sarasota"
+        if region_name_box is None:
+            for box in combos:
+                t = box.inner_text().strip().lower()
+                if "all redfin" in t or "sarasota" in t:
+                    region_name_box = box
+                    break
+
+        if region_name_box:
+            region_name_box.click(timeout=5000)
+            time.sleep(0.5)
+            sarasota_option = page.locator("a[title='Sarasota County, FL']").first
+            sarasota_option.wait_for(state="visible", timeout=5000)
+            sarasota_option.click()
+            time.sleep(2)  # Tableau re-renders asynchronously after filter change
+            logger.info("  ✓ Set Region Name to Sarasota County, FL")
+        else:
+            logger.warning("  Could not find Region Name combo box")
+
         return True
-        
+
     except Exception as e:
         logger.error(f"Failed to set filters: {e}")
         return False
@@ -204,8 +243,20 @@ def download_all_tabs() -> bool:
             # Navigate to base dashboard
             logger.info(f"Loading Tableau dashboard...")
             page.goto(TABLEAU_BASE_URL, timeout=120000)
-            time.sleep(10)  # Give Tableau time to fully render
-            
+
+            # Wait for the tab navigation to appear - this confirms the viz is
+            # fully initialized and interactive.
+            try:
+                page.wait_for_selector(
+                    "#tableauTabbedNavigation_tab_0",
+                    state="visible",
+                    timeout=60000
+                )
+                logger.info("Tableau viz fully loaded (tab nav visible)")
+            except Exception:
+                logger.warning("Tab nav wait timed out - proceeding anyway")
+                time.sleep(10)
+
             logger.info("Dashboard loaded")
             
             # Set filters once (applies to all tabs)
@@ -231,7 +282,7 @@ def download_all_tabs() -> bool:
                 tab = page.locator(tab_id).first
                 if tab.is_visible(timeout=5000):
                     tab.click()
-                    time.sleep(5)  # Wait for tab content to load
+                    wait_for_viz_ready(page)
                     
                     # Download this tab's data
                     if download_crosstab(page, metric_name, output_dir):
