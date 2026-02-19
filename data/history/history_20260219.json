@@ -3,13 +3,13 @@
   "metric_counts": {
     "price_pressure": 4,
     "inventory_absorption": 4,
-    "cash_flow_zones": 15,
+    "buyer_value_index": 13,
     "trend_lines": 6,
-    "zip_price_trends": 6,
-    "assessment_ratio": 8,
-    "investor_activity": 0,
+    "zip_price_trends": 13,
+    "assessment_ratio": 14,
+    "investor_activity": 14,
     "flip_detector": 223,
     "flip_summary": 0,
-    "appraisal_gap": 0
+    "market_snapshot": 0
   }
 }

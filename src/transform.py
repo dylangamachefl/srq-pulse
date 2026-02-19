@@ -26,6 +26,16 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def normalize_account_id(series: pd.Series) -> pd.Series:
+    """
+    Normalize SCPA account IDs for cross-table joins.
+
+    Parcels CSV uses zero-padded format ('0000007002') while Sales CSV
+    uses plain integers ('7002'). Without this, join match rate is ~8%.
+    """
+    return series.astype(str).str.strip().str.lstrip('0')
+
+
 def normalize_address(addr: str) -> str:
     """
     Normalize address for fuzzy matching across data sources.
@@ -208,37 +218,47 @@ def metric_inventory_absorption(redfin_dir: Path) -> pd.DataFrame:
         
         if 'Months Of Supply Yoy' in supply_df.columns:
             cols_to_keep.append('Months Of Supply Yoy')
-            col_rename['Months Of Supply Yoy'] = 'supply_yoy'
-            
+            col_rename['Months Of Supply Yoy'] = 'supply_yoy_abs'
+
         # Get latest 4 weeks
         merged = merged.sort_values('Period End', ascending=False).head(4).copy()
-        
+
         # Calculate ratio
         merged['absorption_ratio'] = merged['Adjusted Average Homes Sold'] / merged['Adjusted Average New Listings']
-        
+
         # Determine state
         def get_market_state(row):
             supply = row['Months Of Supply']
             if supply > 18:
-                return "BUYERS MARKET (Heavy Supply)"
+                return "Buyer's Market — Lots of inventory to choose from"
             elif supply < 8:
-                return "SELLERS MARKET (Low Supply)"
+                return "Seller's Market — Limited homes available"
             else:
-                return "BALANCED MARKET"
-        
+                return "Balanced Market — Normal amount of inventory"
+
         merged['market_state'] = merged.apply(get_market_state, axis=1)
-        
+
         # Format for output
         result = merged[cols_to_keep + ['market_state']].copy()
         result.rename(columns=col_rename, inplace=True)
-        
-        # Ensure supply_yoy exists even if column was missing
-        if 'supply_yoy' not in result.columns:
-            result['supply_yoy'] = 0.0
+
+        # Compute supply_yoy as a proper ratio from the absolute months delta.
+        # 'Months Of Supply Yoy' is an absolute delta (e.g., -8 means 8 fewer months
+        # vs last year), not a ratio. Convert: ratio = delta / (current - delta).
+        if 'supply_yoy_abs' in result.columns:
+            def compute_supply_yoy(row):
+                delta = row['supply_yoy_abs']
+                current = row['weeks_of_supply']
+                if pd.isna(delta) or pd.isna(current):
+                    return None
+                prior = current - delta
+                if prior <= 0:
+                    return None
+                return delta / prior
+            result['supply_yoy'] = result.apply(compute_supply_yoy, axis=1)
+            result.drop(columns=['supply_yoy_abs'], inplace=True)
         else:
-            # FIX: Sanity clamp for Weeks of Supply YoY
-            # If absolute YoY change exceeds 200%, mark as None for template to handle
-            result['supply_yoy'] = result['supply_yoy'].apply(lambda x: x if abs(x) <= 2.0 else None)
+            result['supply_yoy'] = None
             
         # Format dates once during transformation
         result['week'] = pd.to_datetime(result['week']).dt.strftime("%b %d")
@@ -448,17 +468,49 @@ def metric_flip_detector(sales_df: pd.DataFrame, parcels_df: pd.DataFrame) -> pd
                         })
         
         result = pd.DataFrame(flips)
-        
+
+        # Enrich flips with property address and details from parcels
+        if not result.empty and not parcels_df.empty:
+            addr_lookup = parcels_df[['ACCOUNT', 'LOCN', 'LOCS', 'LOCD', 'UNIT', 'LOCZIP', 'BEDR', 'LIVING']].copy()
+            addr_lookup['ACCOUNT_key'] = normalize_account_id(addr_lookup['ACCOUNT'])
+
+            def build_address(row):
+                parts = [
+                    str(row.get('LOCN', '')).replace('.0', '').strip(),
+                    str(row.get('LOCS', '')).strip(),
+                    str(row.get('LOCD', '')).strip(),
+                ]
+                parts = [p for p in parts if p and p.lower() != 'nan']
+                addr = ' '.join(parts)
+                unit = str(row.get('UNIT', '')).strip()
+                if unit and unit.lower() != 'nan':
+                    addr += f' #{unit}'
+                zip5 = str(row.get('LOCZIP', '')).strip()[:5]
+                return f"{addr}, Sarasota FL {zip5}".strip(', ')
+
+            addr_lookup['address'] = addr_lookup.apply(build_address, axis=1)
+            addr_lookup['beds'] = pd.to_numeric(addr_lookup['BEDR'], errors='coerce')
+            addr_lookup['sqft'] = pd.to_numeric(addr_lookup['LIVING'], errors='coerce')
+
+            result['account_key'] = normalize_account_id(result['account'].astype(str))
+            result = result.merge(
+                addr_lookup[['ACCOUNT_key', 'address', 'beds', 'sqft']],
+                left_on='account_key', right_on='ACCOUNT_key',
+                how='left'
+            )
+            result['address'] = result['address'].fillna('Address unavailable')
+            result.drop(columns=['account_key', 'ACCOUNT_key'], inplace=True, errors='ignore')
+
         # Apply filters: recently completed flips (last 180 days)
         if not result.empty:
             cutoff = datetime.now() - timedelta(days=180)
             before_filter = len(result)
             result = result[result["second_sale_date"] >= cutoff].copy()
             logger.info(f"Filtered to last 180 days: {before_filter} -> {len(result)} flips")
-            
+
             # Format dates for delivery
-            result["first_sale_date"] = result["first_sale_date"].dt.strftime("%b %d")
-            result["second_sale_date"] = result["second_sale_date"].dt.strftime("%b %d")
+            result["first_sale_date"] = result["first_sale_date"].dt.strftime("%b %d, %Y")
+            result["second_sale_date"] = result["second_sale_date"].dt.strftime("%b %d, %Y")
         
         # Sanity Check (10-150 range)
         count = len(result)
@@ -487,37 +539,44 @@ def metric_zip_price_trends(sales_df: pd.DataFrame, parcels_df: pd.DataFrame) ->
         if sales_df.empty or parcels_df.empty:
             return pd.DataFrame()
             
-        # Join sales with parcels to get zip codes
+        # Join sales with parcels to get zip codes — use normalized account IDs
+        # and residential filter to prevent commercial sales from distorting medians
         sales = sales_df.copy()
-        parcels = parcels_df[['ACCOUNT', 'LOCZIP']].copy()
-        sales['Account'] = sales['Account'].astype(str).str.strip()
-        parcels['ACCOUNT'] = parcels['ACCOUNT'].astype(str).str.strip()
-        
-        merged = sales.merge(parcels, left_on='Account', right_on='ACCOUNT')
-        # FIX: Clean and format zip as int string
-        merged['zip'] = pd.to_numeric(merged['LOCZIP'], errors='coerce').fillna(0).astype(int).astype(str)
-        merged = merged[merged['zip'].str.startswith('342')]
-        
+        parcels = parcels_df[['ACCOUNT', 'LOCZIP', 'LIVING']].copy()
+        parcels['LIVING'] = pd.to_numeric(parcels['LIVING'], errors='coerce')
+        parcels = parcels[parcels['LIVING'] > 0]  # Residential only
+        sales['Account_key'] = normalize_account_id(sales['Account'])
+        parcels['ACCOUNT_key'] = normalize_account_id(parcels['ACCOUNT'])
+
+        merged = sales.merge(parcels, left_on='Account_key', right_on='ACCOUNT_key')
+        # Use string-based zip extraction for reliability
+        merged['zip'] = merged['LOCZIP'].astype(str).str.strip().str[:5]
+        merged = merged[merged['zip'].str.match(r'^342[0-9][0-9]$')]
+
         cutoff_now = datetime.now() - timedelta(days=365)
         cutoff_prior = datetime.now() - timedelta(days=730)
-        
+
         recent = merged[merged["SaleDate"] >= cutoff_now]
         prior = merged[(merged["SaleDate"] >= cutoff_prior) & (merged["SaleDate"] < cutoff_now)]
-        
+
         current_by_zip = recent.groupby("zip")["SalePrice"].agg(['median', 'count']).reset_index()
         current_by_zip.columns = ['zip', 'price_now', 'sales_volume']
-        
+
         prior_by_zip = prior.groupby("zip")["SalePrice"].median().reset_index()
         prior_by_zip.columns = ['zip', 'price_prior']
-        
+
         result = current_by_zip.merge(prior_by_zip, on="zip", how="inner")
         result["yoy_change"] = (result["price_now"] - result["price_prior"]) / result["price_prior"]
-        
-        # FIX: Flag low volume zips with asterisk
-        result['zip'] = result.apply(lambda x: f"{x['zip']}*" if x['sales_volume'] < 30 else x['zip'], axis=1)
-        
-        result = result.sort_values("yoy_change", ascending=True)
-        
+
+        # Flag low volume zips (threshold lowered to 20 from 30 for better coverage)
+        result['low_volume'] = result['sales_volume'] < 20
+        result['zip_display'] = result.apply(lambda x: f"{x['zip']}*" if x['low_volume'] else x['zip'], axis=1)
+
+        # Flag anomalous YoY swings (>40%) that may indicate data artifacts
+        result['yoy_flag'] = result['yoy_change'].apply(lambda x: 'low_data' if abs(x) > 0.40 else '')
+
+        result = result.sort_values("price_now", ascending=False)
+
         return result
         
     except Exception as e:
@@ -538,33 +597,35 @@ def metric_assessment_ratio(sales_df: pd.DataFrame, parcels_df: pd.DataFrame) ->
         if sales_df.empty or parcels_df.empty:
             return pd.DataFrame()
             
-        # Join sales with parcels
+        # Join sales with parcels using normalized account IDs
         sales = sales_df.copy()
         parcels = parcels_df[['ACCOUNT', 'LOCZIP', 'JUST']].copy()
-        sales['Account'] = sales['Account'].astype(str).str.strip()
-        parcels['ACCOUNT'] = parcels['ACCOUNT'].astype(str).str.strip()
-        
-        merged = sales.merge(parcels, left_on='Account', right_on='ACCOUNT')
-        # FIX: Filter and format zip
-        merged['zip'] = pd.to_numeric(merged['LOCZIP'], errors='coerce').fillna(0).astype(int).astype(str)
-        merged = merged[merged['zip'].str.startswith('342')]
-        
+        sales['Account_key'] = normalize_account_id(sales['Account'])
+        parcels['ACCOUNT_key'] = normalize_account_id(parcels['ACCOUNT'])
+
+        merged = sales.merge(parcels, left_on='Account_key', right_on='ACCOUNT_key')
+        # Use string-based zip extraction for reliability
+        merged['zip'] = merged['LOCZIP'].astype(str).str.strip().str[:5]
+        merged = merged[merged['zip'].str.match(r'^342[0-9][0-9]$')]
+
         merged['JUST'] = pd.to_numeric(merged['JUST'], errors='coerce')
-        
+
         # Last 12 months
         cutoff = datetime.now() - timedelta(days=365)
         recent = merged[(merged["SaleDate"] >= cutoff) & (merged["JUST"] > 0)]
-        
+
+        recent = recent.copy()
         recent["assessment_ratio"] = recent["SalePrice"] / recent["JUST"]
-        
+
         result = recent.groupby("zip")["assessment_ratio"].median().reset_index()
         result.columns = ['zip', 'median_ratio']
-        
+
         def get_ratio_meaning(ratio):
-            if ratio < 0.95: return "Market cooling (below assessed)"
-            elif ratio < 1.05: return "Neutral (near assessed)"
-            else: return "Stable/Hot (above assessed)"
-            
+            if ratio < 0.95: return "Selling below assessed — buyers getting value"
+            elif ratio < 1.05: return "Near assessed value — fair market"
+            elif ratio < 1.20: return "Selling above assessed — competitive zip"
+            else: return "Well above assessed — high demand area"
+
         result['meaning'] = result['median_ratio'].apply(get_ratio_meaning)
         result = result.sort_values("median_ratio", ascending=True)
         
@@ -572,6 +633,76 @@ def metric_assessment_ratio(sales_df: pd.DataFrame, parcels_df: pd.DataFrame) ->
         
     except Exception as e:
         logger.error(f"Error calculating assessment ratio: {e}")
+        return pd.DataFrame()
+
+
+def metric_buyer_value_index(sales_df: pd.DataFrame, parcels_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Buyer Value Index: compares recent median sale price to average county-assessed value by zip.
+
+    Replaces the broken metric_cash_flow_zones which used a single county-wide ZORI for all zips,
+    producing identical rent estimates for every zip.
+
+    Shows which zips are hot (buyers paying well above assessed) vs. fair value (near 1.0).
+
+    Returns:
+        DataFrame with columns: zip, median_sale_price, avg_assessed, value_ratio,
+                                 buyer_signal, sales_volume
+    """
+    logger.info("Calculating Buyer Value Index (replaces Cash Flow Zones)...")
+
+    try:
+        if sales_df.empty or parcels_df.empty:
+            return pd.DataFrame()
+
+        # Residential parcels only — use all parcels for assessed value baseline
+        parcels = parcels_df[['ACCOUNT', 'LOCZIP', 'JUST', 'LIVING']].copy()
+        parcels['LIVING'] = pd.to_numeric(parcels['LIVING'], errors='coerce')
+        parcels['JUST'] = pd.to_numeric(parcels['JUST'], errors='coerce')
+        parcels = parcels[(parcels['LIVING'] > 0) & (parcels['JUST'] > 0)]
+        parcels['ACCOUNT_key'] = normalize_account_id(parcels['ACCOUNT'])
+        parcels['zip'] = parcels['LOCZIP'].astype(str).str.strip().str[:5]
+        parcels = parcels[parcels['zip'].str.match(r'^342[0-9][0-9]$')]
+
+        # Average assessed value per zip (all residential parcels)
+        avg_assessed_by_zip = parcels.groupby('zip')['JUST'].mean().reset_index()
+        avg_assessed_by_zip.columns = ['zip', 'avg_assessed']
+
+        # Recent sales — last 12 months, residential only
+        sales = sales_df.copy()
+        sales['Account_key'] = normalize_account_id(sales['Account'])
+        cutoff = datetime.now() - timedelta(days=365)
+        recent_sales = sales[sales['SaleDate'] >= cutoff]
+
+        merged = recent_sales.merge(
+            parcels[['ACCOUNT_key', 'zip']],
+            left_on='Account_key', right_on='ACCOUNT_key'
+        )
+
+        # Median sale price per zip from recent sales
+        sales_by_zip = merged.groupby('zip')['SalePrice'].agg(['median', 'count']).reset_index()
+        sales_by_zip.columns = ['zip', 'median_sale_price', 'sales_volume']
+
+        # Require min 20 sales
+        sales_by_zip = sales_by_zip[sales_by_zip['sales_volume'] >= 20]
+
+        result = sales_by_zip.merge(avg_assessed_by_zip, on='zip')
+        result['value_ratio'] = result['median_sale_price'] / result['avg_assessed']
+
+        def get_buyer_signal(ratio):
+            if ratio > 1.3: return "Well above assessed"
+            elif ratio > 1.1: return "Above assessed"
+            elif ratio >= 0.95: return "Near assessed value"
+            else: return "Below assessed"
+
+        result['buyer_signal'] = result['value_ratio'].apply(get_buyer_signal)
+        result = result.sort_values('value_ratio', ascending=True)
+
+        logger.info(f"Buyer Value Index: {len(result)} zips with sufficient sales volume")
+        return result
+
+    except Exception as e:
+        logger.error(f"Error calculating buyer value index: {e}")
         return pd.DataFrame()
 
 
@@ -657,42 +788,182 @@ def metric_investor_activity(sales_df: pd.DataFrame, parcels_df: pd.DataFrame) -
             logger.warning("HOMESTEAD column missing from parcel data - skipping investor activity")
             return pd.DataFrame()
             
-        # Join sales with parcels
+        # Join sales with parcels using normalized account IDs
         sales = sales_df.copy()
         parcels = parcels_df[['ACCOUNT', 'LOCZIP', 'HOMESTEAD']].copy()
-        sales['Account'] = sales['Account'].astype(str).str.strip()
-        parcels['ACCOUNT'] = parcels['ACCOUNT'].astype(str).str.strip()
-        
-        merged = sales.merge(parcels, left_on='Account', right_on='ACCOUNT')
-        # FIX: Filter and format zip
-        merged['zip'] = pd.to_numeric(merged['LOCZIP'], errors='coerce').fillna(0).astype(int).astype(str)
-        merged = merged[merged['zip'].str.startswith('342')]
-        
+        sales['Account_key'] = normalize_account_id(sales['Account'])
+        parcels['ACCOUNT_key'] = normalize_account_id(parcels['ACCOUNT'])
+
+        merged = sales.merge(parcels, left_on='Account_key', right_on='ACCOUNT_key')
+        # Use string-based zip extraction for reliability
+        merged['zip'] = merged['LOCZIP'].astype(str).str.strip().str[:5]
+        merged = merged[merged['zip'].str.match(r'^342[0-9][0-9]$')]
+
         # Last 12 months
         cutoff = datetime.now() - timedelta(days=365)
         recent = merged[merged["SaleDate"] >= cutoff].copy()
-        
+
         if recent.empty:
             return pd.DataFrame()
-            
+
         # Flag investor vs owner-occupant
-        # HOMESTEAD > 0 means owner-occupied
-        recent["buyer_type"] = recent["HOMESTEAD"].apply(
-            lambda h: "OWNER-OCCUPANT" if pd.notna(h) and float(h) > 0 else "LIKELY INVESTOR"
-        )
-        
+        # HOMESTEAD field is string 'X' (owner-occupied) or NaN/empty (investor).
+        # Cannot cast to float — 'X' raises ValueError.
+        recent["is_investor"] = ~(recent["HOMESTEAD"].astype(str).str.strip() == 'X')
+
         # Calculate share by zip
-        investor_stats = recent.groupby("zip")["buyer_type"].agg([
-            ('total_sales', 'count'),
-            ('investor_share', lambda x: (x == "LIKELY INVESTOR").mean())
-        ]).reset_index()
-        
+        investor_stats = recent.groupby("zip").agg(
+            total_sales=('Account_key', 'count'),
+            investor_share=('is_investor', 'mean')
+        ).reset_index()
+
         result = investor_stats.sort_values("investor_share", ascending=False)
         return result
         
     except Exception as e:
         logger.error(f"Error calculating investor activity: {e}")
         return pd.DataFrame()
+
+
+def generate_market_snapshot(results: dict) -> dict:
+    """
+    Synthesize computed market metrics into consumer-friendly plain-English takeaways.
+
+    Must be called last in run_transformation() after all metrics are computed.
+
+    Returns:
+        dict with keys for Market Snapshot section in the email template
+    """
+    snapshot = {}
+
+    try:
+        # --- Price Pressure ---
+        price_df = results.get('price_pressure', pd.DataFrame())
+        if not price_df.empty:
+            latest_price = price_df.iloc[-1]
+            snapshot['median_price'] = latest_price.get('median_price', 0)
+            price_yoy = latest_price.get('price_yoy', None)
+            snapshot['price_yoy'] = price_yoy
+            if price_yoy is not None and not pd.isna(price_yoy):
+                direction = "up" if price_yoy > 0 else "down"
+                snapshot['price_yoy_label'] = f"{price_yoy:+.1%} vs. last year ({direction})"
+            else:
+                snapshot['price_yoy_label'] = "Year-over-year change unavailable"
+            snapshot['sale_to_list'] = latest_price.get('sale_to_list', None)
+        else:
+            snapshot['median_price'] = None
+            snapshot['price_yoy'] = None
+            snapshot['price_yoy_label'] = ''
+            snapshot['sale_to_list'] = None
+
+        # --- Inventory ---
+        inv_df = results.get('inventory_absorption', pd.DataFrame())
+        if not inv_df.empty:
+            latest_inv = inv_df.iloc[0]  # sorted descending
+            supply = latest_inv.get('weeks_of_supply', None)
+            snapshot['weeks_supply'] = supply
+            new_listings = latest_inv.get('new_listings', None)
+            homes_sold = latest_inv.get('homes_sold', None)
+            snapshot['new_listings'] = new_listings
+            snapshot['homes_sold'] = homes_sold
+            if supply is not None:
+                if supply > 18:
+                    snapshot['supply_label'] = "Buyers have significant leverage"
+                elif supply < 8:
+                    snapshot['supply_label'] = "Limited homes available — competitive market"
+                else:
+                    snapshot['supply_label'] = "Balanced inventory levels"
+            else:
+                snapshot['supply_label'] = ''
+        else:
+            snapshot['weeks_supply'] = None
+            snapshot['supply_label'] = ''
+            snapshot['new_listings'] = None
+            snapshot['homes_sold'] = None
+
+        # --- Market Phase ---
+        supply = snapshot.get('weeks_supply')
+        price_yoy = snapshot.get('price_yoy')
+        if supply is not None:
+            if supply >= 18 and (price_yoy is None or price_yoy < 0):
+                snapshot['market_phase'] = "Buyer's Market"
+            elif supply >= 18:
+                snapshot['market_phase'] = "Shifting Toward Buyers"
+            elif supply <= 8 and price_yoy is not None and price_yoy > 0:
+                snapshot['market_phase'] = "Seller's Market"
+            elif supply <= 8:
+                snapshot['market_phase'] = "Cooling Seller's Market"
+            else:
+                snapshot['market_phase'] = "Balanced Market"
+        else:
+            snapshot['market_phase'] = "Market Data Unavailable"
+
+        # --- Headline ---
+        phase = snapshot['market_phase']
+        median = snapshot.get('median_price')
+        if "Buyer" in phase and median:
+            snapshot['headline'] = (
+                f"With {supply:.0f} months of supply and a median price of "
+                f"${median:,.0f}, buyers currently have more negotiating room than usual."
+            )
+        elif "Seller" in phase and median:
+            snapshot['headline'] = (
+                f"With only {supply:.0f} months of supply and prices at ${median:,.0f}, "
+                f"sellers are in a strong position — expect competition."
+            )
+        elif median:
+            snapshot['headline'] = (
+                f"The Sarasota market is balanced. Median sale price is ${median:,.0f} "
+                f"with {supply:.0f} months of inventory."
+            )
+        else:
+            snapshot['headline'] = "See sections below for detailed market conditions."
+
+        # --- Hottest zip (highest positive YoY, volume >= 20) ---
+        zip_df = results.get('zip_price_trends', pd.DataFrame())
+        snapshot['hottest_zip'] = None
+        snapshot['hottest_zip_label'] = ''
+        if not zip_df.empty and 'yoy_change' in zip_df.columns:
+            candidates = zip_df[
+                (zip_df['yoy_change'] > 0) &
+                (zip_df['sales_volume'] >= 20)
+            ].sort_values('yoy_change', ascending=False)
+            if not candidates.empty:
+                top = candidates.iloc[0]
+                z = top.get('zip', top.get('zip_display', ''))
+                snapshot['hottest_zip'] = z
+                snapshot['hottest_zip_label'] = (
+                    f"Zip {z} saw the strongest price growth "
+                    f"({top['yoy_change']:+.1%}) with {int(top['sales_volume'])} sales "
+                    f"in the past year"
+                )
+
+        # --- Best value zip (lowest value_ratio, volume >= 20) ---
+        bvi_df = results.get('buyer_value_index', pd.DataFrame())
+        snapshot['best_value_zip'] = None
+        snapshot['best_value_label'] = ''
+        if not bvi_df.empty and 'value_ratio' in bvi_df.columns:
+            best = bvi_df.iloc[0]  # already sorted ascending
+            snapshot['best_value_zip'] = best.get('zip', '')
+            snapshot['best_value_label'] = (
+                f"Zip {best['zip']} has the lowest sale-to-assessed ratio "
+                f"({best['value_ratio']:.2f}x) — relatively more affordable"
+            )
+
+        # --- Flip summary ---
+        flip_df = results.get('flip_detector', pd.DataFrame())
+        if not flip_df.empty:
+            snapshot['flip_count'] = len(flip_df)
+            profitable = (flip_df['outcome'] == 'PROFITABLE').sum() if 'outcome' in flip_df.columns else 0
+            snapshot['flip_profitable_pct'] = profitable / len(flip_df) if len(flip_df) > 0 else 0
+        else:
+            snapshot['flip_count'] = 0
+            snapshot['flip_profitable_pct'] = 0
+
+    except Exception as e:
+        logger.error(f"Error generating market snapshot: {e}")
+
+    return snapshot
 
 
 def run_transformation() -> dict:
@@ -738,13 +1009,13 @@ def run_transformation() -> dict:
     # Run metrics
     results['price_pressure'] = metric_price_pressure_index(redfin_dir)
     results['inventory_absorption'] = metric_inventory_absorption(redfin_dir)
-    results['cash_flow_zones'] = metric_cash_flow_zones(zillow_zori_path, parcels_df)
+    results['buyer_value_index'] = metric_buyer_value_index(sales_df, parcels_df)
     results['trend_lines'] = metric_trend_lines(zillow_zhvi_path, zillow_zori_path, parcels_df)
     results['zip_price_trends'] = metric_zip_price_trends(sales_df, parcels_df)
     results['assessment_ratio'] = metric_assessment_ratio(sales_df, parcels_df)
     results['investor_activity'] = metric_investor_activity(sales_df, parcels_df)
     results['flip_detector'] = metric_flip_detector(sales_df, parcels_df)
-    
+
     # Calculate Flip Summary
     flips = results['flip_detector']
     if not flips.empty:
@@ -754,9 +1025,10 @@ def run_transformation() -> dict:
         results['flip_summary'] = f"{total} total — {profitable} profitable, {loss} loss"
     else:
         results['flip_summary'] = "No flips detected"
-        
-    results['appraisal_gap'] = metric_appraisal_gap(zillow_zhvi_path, parcels_df)
-    
+
+    # Market snapshot must run last — synthesizes all other results
+    results['market_snapshot'] = generate_market_snapshot(results)
+
     logger.info("✅ Transformation complete")
     return results
 

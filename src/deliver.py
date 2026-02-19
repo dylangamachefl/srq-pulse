@@ -23,12 +23,12 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-# HTML Email Template (V4 - Weekly Market Intelligence)
+# HTML Email Template (V5 - Consumer-Friendly Redesign)
 EMAIL_TEMPLATE = """
 <!DOCTYPE html>
 <html>
 <head>
- <meta charset="utf-8">
+    <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
         body {
@@ -38,10 +38,10 @@ EMAIL_TEMPLATE = """
             max-width: 800px;
             margin: 0 auto;
             padding: 20px;
-            background-color: #f5f5f5;
+            background-color: #f0f4f8;
         }
         .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #1a56db 0%, #1e7e5e 100%);
             color: white;
             padding: 30px;
             border-radius: 8px 8px 0 0;
@@ -50,27 +50,37 @@ EMAIL_TEMPLATE = """
         .header h1 {
             margin: 0;
             font-size: 28px;
+            letter-spacing: -0.5px;
         }
         .header p {
-            margin: 10px 0 0 0;
-            opacity: 0.9;
+            margin: 8px 0 0 0;
+            opacity: 0.85;
+            font-size: 15px;
         }
         .content {
             background: white;
             padding: 30px;
             border-radius: 0 0 8px 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
         }
         .metric-section {
             margin: 30px 0;
-            border-left: 4px solid #667eea;
+            border-left: 4px solid #1a56db;
             padding-left: 20px;
         }
         .metric-section h2 {
             margin-top: 0;
-            color: #667eea;
-            font-size: 20px;
+            color: #1a56db;
+            font-size: 18px;
         }
+        .section-teal { border-left-color: #0e9f6e; }
+        .section-teal h2 { color: #0e9f6e; }
+        .section-orange { border-left-color: #d03801; }
+        .section-orange h2 { color: #d03801; }
+        .section-green { border-left-color: #057a55; }
+        .section-green h2 { color: #057a55; }
+        .section-red { border-left-color: #c81e1e; }
+        .section-red h2 { color: #c81e1e; }
         table {
             width: 100%;
             border-collapse: collapse;
@@ -78,76 +88,170 @@ EMAIL_TEMPLATE = """
             font-size: 14px;
         }
         th {
-            background-color: #f8f9fa;
-            padding: 12px;
+            background-color: #f3f4f6;
+            padding: 11px 12px;
             text-align: left;
             font-weight: 600;
-            border-bottom: 2px solid #dee2e6;
+            border-bottom: 2px solid #e5e7eb;
+            font-size: 13px;
         }
         td {
             padding: 10px 12px;
-            border-bottom: 1px solid #dee2e6;
+            border-bottom: 1px solid #e5e7eb;
+            vertical-align: top;
         }
         tr:hover {
-            background-color: #f8f9fa;
+            background-color: #f9fafb;
         }
         .footer {
             margin-top: 30px;
             padding: 20px;
-            background-color: #f8f9fa;
+            background-color: #f3f4f6;
             border-radius: 8px;
             font-size: 13px;
-            color: #666;
+            color: #6b7280;
         }
         .footer strong {
-            color: #333;
+            color: #374151;
         }
         .no-data {
-            color: #999;
+            color: #9ca3af;
             font-style: italic;
             padding: 20px;
             text-align: center;
-            background-color: #f8f9fa;
+            background-color: #f9fafb;
             border-radius: 4px;
         }
         .badge {
             display: inline-block;
-            padding: 4px 8px;
+            padding: 3px 8px;
             border-radius: 4px;
             font-size: 12px;
             font-weight: 600;
         }
         .badge-success {
-            background-color: #d4edda;
-            color: #155724;
+            background-color: #def7ec;
+            color: #03543f;
         }
         .badge-warning {
-            background-color: #fff3cd;
-            color: #856404;
+            background-color: #fef3c7;
+            color: #92400e;
         }
         .badge-danger {
-            background-color: #f8d7da;
-            color: #721c24;
+            background-color: #fde8e8;
+            color: #9b1c1c;
+        }
+        .badge-down {
+            background-color: #dbeafe;
+            color: #1e40af;
+        }
+        .badge-neutral {
+            background-color: #f3f4f6;
+            color: #4b5563;
         }
         .degraded-alert {
-            background-color: #fff3cd;
-            border-left: 4px solid #ffc107;
+            background-color: #fef3c7;
+            border-left: 4px solid #f59e0b;
             padding: 20px;
             margin: 20px 0;
             border-radius: 4px;
         }
         .degraded-alert h2 {
             margin-top: 0;
-            color: #856404;
+            color: #92400e;
+        }
+        .market-phase-banner {
+            background: linear-gradient(90deg, #eff6ff 0%, #f0fdf4 100%);
+            border: 1px solid #bfdbfe;
+            border-radius: 8px;
+            padding: 16px 20px;
+            margin: 0 0 24px 0;
+            text-align: center;
+        }
+        .market-phase-label {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: #6b7280;
+            margin-bottom: 4px;
+        }
+        .market-phase-value {
+            font-size: 20px;
+            font-weight: 700;
+            color: #1e3a5f;
+        }
+        .snapshot-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 12px 0 0 0;
+        }
+        .snapshot-cell {
+            width: 50%;
+            padding: 14px 16px;
+            background-color: #f9fafb;
+            border: 1px solid #e5e7eb;
+            vertical-align: top;
+        }
+        .snapshot-cell:first-child {
+            border-right: none;
+            border-radius: 6px 0 0 6px;
+        }
+        .snapshot-cell:last-child {
+            border-radius: 0 6px 6px 0;
+        }
+        .snapshot-label {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #6b7280;
+            margin-bottom: 4px;
+        }
+        .snapshot-value {
+            font-size: 26px;
+            font-weight: 700;
+            color: #111827;
+            line-height: 1.1;
+        }
+        .snapshot-sub {
+            font-size: 12px;
+            color: #6b7280;
+            margin-top: 4px;
+        }
+        .insight-box {
+            background-color: #f9fafb;
+            border-left: 3px solid #9ca3af;
+            padding: 10px 14px;
+            margin: 12px 0 4px 0;
+            font-size: 13px;
+            color: #4b5563;
+            border-radius: 0 4px 4px 0;
+        }
+        .insight-box strong {
+            color: #1f2937;
+        }
+        .insight-orange {
+            border-left-color: #f59e0b;
+        }
+        .data-note {
+            font-size: 11px;
+            color: #9ca3af;
+            font-style: italic;
+        }
+        .prop-detail {
+            font-size: 12px;
+            color: #6b7280;
+            margin-top: 2px;
         }
     </style>
 </head>
 <body>
     <div class="header">
         <h1>🏡 SRQ Pulse</h1>
-        <p>Week of {{ date }}</p>
+        <p>Sarasota Real Estate &mdash; Week of {{ date }}</p>
     </div>
-    
+
     <div class="content">
         {% if is_degraded %}
         <div class="degraded-alert">
@@ -158,18 +262,69 @@ EMAIL_TEMPLATE = """
             </div>
         </div>
         {% else %}
-        
+
+        <!-- MARKET SNAPSHOT -->
+        {% if market_snapshot %}
+        <div class="market-phase-banner">
+            <div class="market-phase-label">This Week's Market Condition</div>
+            <div class="market-phase-value">{{ market_snapshot.market_phase }}</div>
+        </div>
+
+        <div class="metric-section" style="border-left-color: #1a56db;">
+            <h2 style="color: #1a56db;">📋 Market Snapshot</h2>
+            <p style="color: #6b7280; font-size: 13px; margin-bottom: 0;">Key numbers for the week of {{ date }}</p>
+
+            <table class="snapshot-table">
+                <tr>
+                    <td class="snapshot-cell">
+                        <div class="snapshot-label">Median Sale Price</div>
+                        {% if market_snapshot.median_price %}
+                        <div class="snapshot-value">${{ "{:,.0f}".format(market_snapshot.median_price) }}</div>
+                        <div class="snapshot-sub">{{ market_snapshot.price_yoy_label }}</div>
+                        {% else %}
+                        <div class="snapshot-value">—</div>
+                        {% endif %}
+                    </td>
+                    <td class="snapshot-cell">
+                        <div class="snapshot-label">Months of Supply</div>
+                        {% if market_snapshot.weeks_supply %}
+                        <div class="snapshot-value">{{ "{:.0f}".format(market_snapshot.weeks_supply) }} mo</div>
+                        <div class="snapshot-sub">{{ market_snapshot.supply_label }}</div>
+                        {% else %}
+                        <div class="snapshot-value">—</div>
+                        {% endif %}
+                    </td>
+                </tr>
+            </table>
+
+            <div class="insight-box">
+                <strong>What this means:</strong> {{ market_snapshot.headline }}
+            </div>
+            {% if market_snapshot.hottest_zip %}
+            <div class="insight-box insight-orange">
+                <strong>Trending neighborhood:</strong> {{ market_snapshot.hottest_zip_label }}
+            </div>
+            {% endif %}
+            {% if market_snapshot.best_value_zip %}
+            <div class="insight-box">
+                <strong>Best value area:</strong> {{ market_snapshot.best_value_label }}
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- SECTION 1: ARE PRICES RISING OR FALLING? -->
         <div class="metric-section">
-            <h2>📉 Price Pressure Index</h2>
-            <p>Median sale price + sale-to-list ratio trends (last 4 weeks).</p>
+            <h2>📉 Are Prices Rising or Falling?</h2>
+            <p>Median sale price and how close homes are selling to asking price (last 4 weeks).</p>
             {% if price_pressure|length > 0 %}
             <table>
                 <thead>
-                     <tr>
+                    <tr>
                         <th>Week</th>
                         <th>Median Price</th>
-                        <th>WoW Δ</th>
-                        <th>YoY Δ</th>
+                        <th>Week-over-Week</th>
+                        <th>Year-over-Year</th>
                         <th>Sale-to-List</th>
                         <th>Signal</th>
                     </tr>
@@ -178,41 +333,53 @@ EMAIL_TEMPLATE = """
                     {% for row in price_pressure %}
                     <tr>
                         <td>{{ row.week }}</td>
-                        <td>${{ "{:,.0f}".format(row.median_price) if row.median_price else 'N/A' }}</td>
-                        <td>{{ "{:+.1%}".format(row.price_delta) if row.price_delta is not none else '—' }}</td>
-                        <td>{{ "{:+.1%}".format(row.price_yoy) if row.price_yoy is not none else '—' }} YoY</td>
-                        <td>{{ "{:.2%}".format(row.sale_to_list) if row.sale_to_list else 'N/A' }}</td>
+                        <td><strong>${{ "{:,.0f}".format(row.median_price) if row.median_price else 'N/A' }}</strong></td>
+                        <td>{{ "{:+.1%}".format(row.price_delta) if (row.price_delta is not none and row.price_delta == row.price_delta) else '—' }}</td>
+                        <td>{{ "{:+.1%}".format(row.price_yoy) if row.price_yoy is not none else '—' }}</td>
+                        <td>{{ "{:.1%}".format(row.sale_to_list) if row.sale_to_list else 'N/A' }}</td>
                         <td>{{ row.signal }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
+            {% set latest_pp = price_pressure[-1] %}
+            <div class="insight-box">
+                <strong>What to know:</strong>
+                {% if latest_pp.sale_to_list and latest_pp.sale_to_list < 0.97 %}
+                Homes are selling below asking price ({{ "{:.1%}".format(latest_pp.sale_to_list) }} of list on average). Buyers may have room to negotiate.
+                {% elif latest_pp.sale_to_list and latest_pp.sale_to_list > 1.0 %}
+                Homes are selling above asking price ({{ "{:.1%}".format(latest_pp.sale_to_list) }} of list). Expect competition and consider offering at or above list price.
+                {% else %}
+                Homes are selling near asking price. The market is fairly balanced right now.
+                {% endif %}
+            </div>
             {% else %}
-            <div class="no-data">Data unavailable this week (Redfin source failed or not yet configured)</div>
+            <div class="no-data">Price data unavailable this week (Redfin source failed)</div>
             {% endif %}
         </div>
-        
-        <div class="metric-section">
-            <h2>📦 Inventory & Absorption</h2>
-            <p>Weeks of supply + new listings vs homes sold (last 4 weeks).</p>
+
+        <!-- SECTION 2: HOW MUCH HOUSING IS AVAILABLE? -->
+        <div class="metric-section section-teal">
+            <h2>📦 How Much Housing Is Available?</h2>
+            <p>Months of supply, new listings coming to market, and homes going under contract (last 4 weeks).</p>
             {% if inventory|length > 0 %}
             <table>
                 <thead>
                     <tr>
                         <th>Week</th>
-                        <th>Weeks of Supply</th>
-                        <th>YoY Δ</th>
+                        <th>Months of Supply</th>
+                        <th>YoY Change</th>
                         <th>New Listings</th>
                         <th>Homes Sold</th>
-                        <th>Market State</th>
+                        <th>Market Condition</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for row in inventory %}
                     <tr>
                         <td>{{ row.week }}</td>
-                        <td>{{ "{:.1f}".format(row.weeks_of_supply) if row.weeks_of_supply is not none else 'N/A' }}</td>
-                        <td>{{ "{:+.1%}".format(row.supply_yoy) if row.supply_yoy is not none else 'anomaly' }} YoY</td>
+                        <td><strong>{{ "{:.1f}".format(row.weeks_of_supply) if row.weeks_of_supply is not none else 'N/A' }}</strong></td>
+                        <td>{{ "{:+.1%}".format(row.supply_yoy) if row.supply_yoy is not none else 'N/A' }}</td>
                         <td>{{ "{:,.0f}".format(row.new_listings) if row.new_listings else 'N/A' }}</td>
                         <td>{{ "{:,.0f}".format(row.homes_sold) if row.homes_sold else 'N/A' }}</td>
                         <td>{{ row.market_state }}</td>
@@ -220,23 +387,38 @@ EMAIL_TEMPLATE = """
                     {% endfor %}
                 </tbody>
             </table>
+            {% set latest_inv = inventory[0] %}
+            <div class="insight-box">
+                <strong>What to know:</strong>
+                {% if latest_inv.weeks_of_supply and latest_inv.weeks_of_supply > 18 %}
+                At {{ "{:.0f}".format(latest_inv.weeks_of_supply) }} months of supply, buyers have significant negotiating power — there are more homes available than buyers right now.
+                {% elif latest_inv.weeks_of_supply and latest_inv.weeks_of_supply < 8 %}
+                At only {{ "{:.0f}".format(latest_inv.weeks_of_supply) }} months of supply, homes are moving fast. Buyers should be prepared to act quickly.
+                {% else %}
+                The market has a relatively balanced amount of inventory.
+                {% endif %}
+                {% if latest_inv.new_listings and latest_inv.homes_sold %}
+                New listings ({{ "{:,.0f}".format(latest_inv.new_listings) }}) are {{ 'outpacing' if latest_inv.new_listings > latest_inv.homes_sold else 'below' }} homes sold ({{ "{:,.0f}".format(latest_inv.homes_sold) }}) this week.
+                {% endif %}
+            </div>
             {% else %}
-            <div class="no-data">Data unavailable this week (Redfin source failed or not yet configured)</div>
+            <div class="no-data">Inventory data unavailable this week (Redfin source failed)</div>
             {% endif %}
         </div>
-        
-        <div class="metric-section">
-            <h2>📈 Cash Flow Trend (County-Level)</h2>
-            <p>ZORI / ZHVI ratio over the last 6 months.</p>
+
+        <!-- SECTION 3: HOME VALUE & RENT TREND -->
+        <div class="metric-section section-teal">
+            <h2>📈 Sarasota Home Value &amp; Rent Trend</h2>
+            <p>How average home values and typical rents have moved over the past 6 months (county-wide).</p>
             {% if trend_lines|length > 0 %}
             <table>
                 <thead>
                     <tr>
                         <th>Month</th>
-                        <th>ZHVI</th>
-                        <th>ZORI</th>
-                        <th>Annual Ratio</th>
-                        <th>Direction</th>
+                        <th>Avg. Home Value (Zillow)</th>
+                        <th>Typical Monthly Rent</th>
+                        <th>Rent-to-Value Ratio</th>
+                        <th>Trend</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -251,121 +433,167 @@ EMAIL_TEMPLATE = """
                     {% endfor %}
                 </tbody>
             </table>
+            {% set latest_tl = trend_lines[-1] %}
+            <div class="insight-box">
+                <strong>What this means:</strong>
+                A {{ "{:.1%}".format(latest_tl.flow_ratio) }} annual rent-to-value ratio means that for a typical
+                ${{ "{:,.0f}".format(latest_tl.zhvi) }} home, gross annual rent is roughly ${{ "{:,.0f}".format(latest_tl.zori * 12) }}.
+                This is a county-wide estimate — actual figures vary significantly by neighborhood.
+            </div>
             {% else %}
-            <div class="no-data">Trend data unavailable</div>
+            <div class="no-data">Home value trend data unavailable (Zillow source failed)</div>
             {% endif %}
         </div>
-        
-        <div class="metric-section">
-            <h2>💰 Cash Flow Zones</h2>
-            <p>Sarasota zip codes ranked by monthly rent / home value ratio.</p>
-            {% if cash_flow_zones|length > 0 %}
+
+        <!-- SECTION 4: WHERE ARE HOMES PRICED FAIRLY? (Buyer Value Index) -->
+        <div class="metric-section section-orange">
+            <h2>🏘️ Where Are Homes Priced Fairly?</h2>
+            <p>Comparing recent median sale prices to county-assessed values by zip code (last 12 months, residential only).</p>
+            {% if buyer_value_index|length > 0 %}
             <table>
                 <thead>
                     <tr>
-                        <th>Rank</th>
                         <th>Zip</th>
-                        <th>Avg Assessed (JUST)</th>
-                        <th>Est. Annual Rent</th>
-                        <th>Cash Flow Ratio</th>
+                        <th>Median Sale Price</th>
+                        <th>Avg. Assessed Value</th>
+                        <th>Sale vs. Assessed</th>
+                        <th>Buyer Signal</th>
+                        <th>Sales</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% for row in cash_flow_zones[:10] %}
+                    {% for row in buyer_value_index %}
                     <tr>
-                        <td>{{ row.rank }}</td>
-                        <td>{{ row.zip }}</td>
+                        <td><strong>{{ row.zip }}</strong></td>
+                        <td>${{ "{:,.0f}".format(row.median_sale_price) }}</td>
                         <td>${{ "{:,.0f}".format(row.avg_assessed) }}</td>
-                        <td>${{ "{:,.0f}".format(row.est_annual_rent) }}</td>
-                        <td><span class="badge badge-success">{{ "{:.1%}".format(row.cash_flow_ratio) }}</span></td>
+                        <td>
+                            <span class="badge {% if row.value_ratio > 1.3 %}badge-warning{% elif row.value_ratio < 0.95 %}badge-success{% else %}badge-neutral{% endif %}">
+                                {{ "{:.2f}x".format(row.value_ratio) }}
+                            </span>
+                        </td>
+                        <td>{{ row.buyer_signal }}</td>
+                        <td class="data-note">{{ row.sales_volume }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
+            <div class="insight-box">
+                <strong>How to read this:</strong> A ratio above 1.0x means buyers are paying more than the county's assessed
+                value — common in active markets. Below 1.0x may indicate a softer neighborhood. County assessments
+                typically lag the market by 1–2 years, so this is a relative comparison, not an appraisal.
+            </div>
             {% else %}
-            <div class="no-data">Data unavailable this week (Zillow source failed)</div>
+            <div class="no-data">Buyer value data unavailable this week (county data required)</div>
             {% endif %}
         </div>
 
+        <!-- SECTION 5: PRICE CHANGES BY NEIGHBORHOOD -->
         <div class="metric-section">
-            <h2>📍 Zip-Level Price Trends</h2>
-            <p>Median sale price per zip (Last 12 Months vs Prior Year).</p>
+            <h2>📍 Price Changes by Neighborhood (Year Over Year)</h2>
+            <p>Median sale price in each zip code — last 12 months vs. the year before. Residential sales only. Zips marked * have fewer than 20 sales (treat as directional only).</p>
             {% if zip_price_trends|length > 0 %}
             <table>
                 <thead>
                     <tr>
                         <th>Zip</th>
-                        <th>Median Price (Current)</th>
-                        <th>Median Price (Prior)</th>
+                        <th>Current Median</th>
+                        <th>Prior Year Median</th>
                         <th>YoY Change</th>
-                        <th>Sales Volume</th>
+                        <th>Sales</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for row in zip_price_trends %}
                     <tr>
-                        <td>{{ row.zip }}</td>
+                        <td><strong>{{ row.zip_display if row.zip_display else row.zip }}</strong></td>
                         <td>${{ "{:,.0f}".format(row.price_now) }}</td>
                         <td>${{ "{:,.0f}".format(row.price_prior) }}</td>
-                        <td><span class="badge {% if row.yoy_change > 0 %}badge-warning{% else %}badge-success{% endif %}">{{ "{:+.1%}".format(row.yoy_change) }}</span></td>
-                        <td>{{ row.sales_volume }}</td>
+                        <td>
+                            <span class="badge {% if row.yoy_change > 0.05 %}badge-warning{% elif row.yoy_change < -0.05 %}badge-down{% else %}badge-neutral{% endif %}">
+                                {{ "{:+.1%}".format(row.yoy_change) }}
+                            </span>
+                            {% if row.yoy_flag == 'low_data' %}<span class="data-note"> limited data</span>{% endif %}
+                        </td>
+                        <td class="data-note">{{ row.sales_volume }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
+            <div class="insight-box">
+                <strong>What to know:</strong> These are recorded county sales prices, not list prices or Zestimate estimates.
+                Orange badge = prices rose vs. last year. Blue badge = prices fell.
+                Large swings (like +40%) in low-volume zips may reflect a single unusual sale — look at the sales count.
+            </div>
             {% else %}
-            <div class="no-data">Zip-level price trends unavailable</div>
+            <div class="no-data">Zip-level price trends unavailable (county data required)</div>
             {% endif %}
         </div>
 
-        <div class="metric-section">
-            <h2>📊 Assessment Ratio by Zip</h2>
-            <p>Sale Price vs County Appraised Value. Ratios below 1.0 indicate cooling.</p>
+        <!-- SECTION 6: SALE PRICE VS. COUNTY ASSESSMENT -->
+        <div class="metric-section section-green">
+            <h2>📊 Are Sale Prices Above or Below County Assessments?</h2>
+            <p>The Sarasota County Property Appraiser assigns a value to each property. This shows how actual sale prices compare.</p>
             {% if assessment_ratio|length > 0 %}
             <table>
                 <thead>
                     <tr>
                         <th>Zip</th>
                         <th>Median Ratio</th>
-                        <th>Meaning</th>
+                        <th>What It Means</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for row in assessment_ratio %}
                     <tr>
-                        <td>{{ row.zip }}</td>
-                        <td>{{ "{:.2f}".format(row.median_ratio) }}</td>
+                        <td><strong>{{ row.zip }}</strong></td>
+                        <td>
+                            <span class="badge {% if row.median_ratio > 1.2 %}badge-warning{% elif row.median_ratio < 0.95 %}badge-success{% else %}badge-neutral{% endif %}">
+                                {{ "{:.2f}x".format(row.median_ratio) }}
+                            </span>
+                        </td>
                         <td>{{ row.meaning }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
+            <div class="insight-box">
+                <strong>Context:</strong> County assessments typically lag market values by 1–2 years.
+                A ratio of 1.22x means homes are selling 22% above what the county assessed them at —
+                this is normal in an appreciating market. A ratio near or below 1.0x can signal cooling prices.
+            </div>
             {% else %}
-            <div class="no-data">Assessment ratio data unavailable</div>
+            <div class="no-data">Assessment ratio data unavailable (county data required)</div>
             {% endif %}
         </div>
-        
-        <div class="metric-section">
+
+        <!-- SECTION 7: FLIP ACTIVITY -->
+        <div class="metric-section section-red">
             <h2>🔄 Flip Activity (Last 6 Months)</h2>
-            <p><strong>{{ flip_summary }}</strong></p>
-            
+            <p><strong>{{ flip_summary }}</strong> &mdash; properties bought and resold within 4–12 months.</p>
+
             {% if profitable_flips|length > 0 %}
-            <h3 style="color: #2e7d32; margin-top: 15px;">Recent Profitable Flips</h3>
+            <h3 style="color: #057a55; margin-top: 20px; font-size: 15px;">Recent Profitable Flips</h3>
             <table>
                 <thead>
                     <tr>
-                        <th>Account</th>
-                        <th>Bought for</th>
-                        <th>Sold for</th>
-                        <th>Markup</th>
+                        <th>Property</th>
+                        <th>Purchased</th>
+                        <th>Sold</th>
+                        <th>Gain</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for row in profitable_flips[:10] %}
                     <tr>
-                        <td>{{ row.account }}</td>
-                        <td>${{ "{:,.0f}".format(row.first_sale_price) }} ({{ row.first_sale_date }})</td>
-                        <td>${{ "{:,.0f}".format(row.second_sale_price) }} ({{ row.second_sale_date }})</td>
+                        <td>
+                            <strong>{{ row.address if row.address else 'Address unavailable' }}</strong>
+                            {% if row.sqft and row.sqft == row.sqft %}
+                            <div class="prop-detail">{{ "{:,.0f}".format(row.sqft) }} sqft{% if row.beds and row.beds == row.beds %}, {{ "{:.0f}".format(row.beds) }} bed{% endif %}</div>
+                            {% endif %}
+                        </td>
+                        <td>${{ "{:,.0f}".format(row.first_sale_price) }}<br><span class="data-note">{{ row.first_sale_date }}</span></td>
+                        <td>${{ "{:,.0f}".format(row.second_sale_price) }}<br><span class="data-note">{{ row.second_sale_date }}</span></td>
                         <td><span class="badge badge-success">{{ "{:+.1%}".format(row.markup_pct) }}</span></td>
                     </tr>
                     {% endfor %}
@@ -374,22 +602,27 @@ EMAIL_TEMPLATE = """
             {% endif %}
 
             {% if loss_flips|length > 0 %}
-            <h3 style="color: #c62828; margin-top: 15px;">Recent Flips at a Loss</h3>
+            <h3 style="color: #9b1c1c; margin-top: 20px; font-size: 15px;">Recent Flips at a Loss</h3>
             <table>
                 <thead>
                     <tr>
-                        <th>Account</th>
-                        <th>Bought for</th>
-                        <th>Sold for</th>
+                        <th>Property</th>
+                        <th>Purchased</th>
+                        <th>Sold</th>
                         <th>Loss</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for row in loss_flips[:10] %}
                     <tr>
-                        <td>{{ row.account }}</td>
-                        <td>${{ "{:,.0f}".format(row.first_sale_price) }} ({{ row.first_sale_date }})</td>
-                        <td>${{ "{:,.0f}".format(row.second_sale_price) }} ({{ row.second_sale_date }})</td>
+                        <td>
+                            <strong>{{ row.address if row.address else 'Address unavailable' }}</strong>
+                            {% if row.sqft and row.sqft == row.sqft %}
+                            <div class="prop-detail">{{ "{:,.0f}".format(row.sqft) }} sqft{% if row.beds and row.beds == row.beds %}, {{ "{:.0f}".format(row.beds) }} bed{% endif %}</div>
+                            {% endif %}
+                        </td>
+                        <td>${{ "{:,.0f}".format(row.first_sale_price) }}<br><span class="data-note">{{ row.first_sale_date }}</span></td>
+                        <td>${{ "{:,.0f}".format(row.second_sale_price) }}<br><span class="data-note">{{ row.second_sale_date }}</span></td>
                         <td><span class="badge badge-danger">{{ "{:+.1%}".format(row.markup_pct) }}</span></td>
                     </tr>
                     {% endfor %}
@@ -400,37 +633,54 @@ EMAIL_TEMPLATE = """
             {% if profitable_flips|length == 0 and loss_flips|length == 0 %}
             <div class="no-data">No flips detected in the last 180 days</div>
             {% endif %}
+
+            <div class="insight-box">
+                <strong>What flips tell us:</strong> Profitable flips indicate investors successfully adding value or
+                timing the market. Loss flips may signal overpriced purchases, renovation overruns, or softening
+                prices in that area. Data is from Sarasota County recorded Warranty Deed transactions.
+            </div>
         </div>
 
+        <!-- SECTION 8: WHO IS BUYING? -->
         <div class="metric-section">
-            <h2>🏢 Investor Activity by Zip</h2>
-            <p>Likely investor share of total sales (Last 12 Months).</p>
+            <h2>🏢 Who Is Buying? Owners vs. Investors by Zip</h2>
+            <p>Share of sales in the past 12 months estimated to be investors (non-homesteaded purchasers). High investor share can mean more competition for owner-occupant buyers.</p>
             {% if investor_activity|length > 0 %}
             <table>
                 <thead>
                     <tr>
                         <th>Zip</th>
                         <th>Total Sales</th>
-                        <th>Investor %</th>
+                        <th>Estimated Investor Share</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for row in investor_activity %}
                     <tr>
-                        <td>{{ row.zip }}</td>
+                        <td><strong>{{ row.zip }}</strong></td>
                         <td>{{ row.total_sales }}</td>
-                        <td><span class="badge badge-warning">{{ "{:.1%}".format(row.investor_share) }}</span></td>
+                        <td>
+                            <span class="badge {% if row.investor_share > 0.6 %}badge-warning{% elif row.investor_share < 0.3 %}badge-success{% else %}badge-neutral{% endif %}">
+                                {{ "{:.0%}".format(row.investor_share) }}
+                            </span>
+                            <span style="display: inline-block; background: #fef3c7; height: 8px; width: {{ [100, (row.investor_share * 100)|int]|min }}px; vertical-align: middle; margin-left: 6px; border-radius: 2px;"></span>
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
+            <div class="insight-box">
+                <strong>Note:</strong> "Investor" is estimated from the absence of a homestead exemption at the time
+                of the latest county data pull. This includes vacation homes, second homes, and short-term rentals
+                alongside traditional investment properties — it's a proxy, not a definitive count.
+            </div>
             {% else %}
-            <div class="no-data">Investor activity data unavailable</div>
+            <div class="no-data">Investor activity data unavailable (county data required)</div>
             {% endif %}
         </div>
-        
+
         {% endif %}
-        
+
         <div class="footer">
             <strong>⚙️ Pipeline Health:</strong><br>
             {% if stats.zillow_status %}<span class="{{ 'badge-success' if stats.zillow_status == 'OK' else 'badge-danger' }}">Zillow: {{ stats.zillow_status }}</span> {% endif %}
@@ -439,7 +689,7 @@ EMAIL_TEMPLATE = """
             <br>
             Execution Time: {{ stats.execution_time }}<br>
             <br>
-            <em>This report is generated automatically every Monday by a serverless ETL pipeline. Data sourced from Redfin Data Center, Zillow Research, and Sarasota County Property Appraiser.</em>
+            <em>Generated weekly by a serverless ETL pipeline. Data sourced from Redfin Data Center, Zillow Research, and Sarasota County Property Appraiser.</em>
         </div>
     </div>
 </body>
@@ -468,6 +718,10 @@ def render_email(results: dict, stats: dict, is_degraded: bool = False, error_lo
             return []
         return df.to_dict('records')
     
+    flip_df = results.get('flip_detector', pd.DataFrame())
+    profitable_flips = df_to_list(flip_df[flip_df['outcome'] == 'PROFITABLE']) if not flip_df.empty else []
+    loss_flips = df_to_list(flip_df[flip_df['outcome'] == 'LOSS']) if not flip_df.empty else []
+
     rendered = template.render(
         date=datetime.now().strftime("%B %d, %Y"),
         is_degraded=is_degraded,
@@ -475,13 +729,14 @@ def render_email(results: dict, stats: dict, is_degraded: bool = False, error_lo
         price_pressure=df_to_list(results.get('price_pressure', pd.DataFrame())),
         inventory=df_to_list(results.get('inventory_absorption', pd.DataFrame())),
         trend_lines=df_to_list(results.get('trend_lines', pd.DataFrame())),
-        cash_flow_zones=df_to_list(results.get('cash_flow_zones', pd.DataFrame())),
+        buyer_value_index=df_to_list(results.get('buyer_value_index', pd.DataFrame())),
         zip_price_trends=df_to_list(results.get('zip_price_trends', pd.DataFrame())),
         assessment_ratio=df_to_list(results.get('assessment_ratio', pd.DataFrame())),
-        profitable_flips=df_to_list(results.get('flip_detector', pd.DataFrame())[results.get('flip_detector', pd.DataFrame())['outcome'] == 'PROFITABLE'] if not results.get('flip_detector', pd.DataFrame()).empty else pd.DataFrame()),
-        loss_flips=df_to_list(results.get('flip_detector', pd.DataFrame())[results.get('flip_detector', pd.DataFrame())['outcome'] == 'LOSS'] if not results.get('flip_detector', pd.DataFrame()).empty else pd.DataFrame()),
+        profitable_flips=profitable_flips,
+        loss_flips=loss_flips,
         flip_summary=results.get('flip_summary', 'No flips detected'),
         investor_activity=df_to_list(results.get('investor_activity', pd.DataFrame())),
+        market_snapshot=results.get('market_snapshot', None),
         stats=stats
     )
     
