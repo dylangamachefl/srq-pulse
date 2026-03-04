@@ -125,7 +125,7 @@ srq-pulse/
 
 ---
 
-## 🎓 Resume-Friendly Highlights (V4)
+## 🎓 Highlights
 
 - **Advanced Data Integration:** Standardized disparate datasets (Tab-separated UTF-16, CSV, Zip-compressed) into a unified market intelligence schema.
 - **Serverless Architectural Design:** Engineered a stateful ETL pipeline using GitHub Actions as an orchestrator and Git as a persistence layer.
