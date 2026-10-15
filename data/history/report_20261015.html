@@ -1,0 +1,1521 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f0f4f8;
+        }
+        .header {
+            background: linear-gradient(135deg, #1a56db 0%, #1e7e5e 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 8px 8px 0 0;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 28px;
+            letter-spacing: -0.5px;
+        }
+        .header p {
+            margin: 8px 0 0 0;
+            opacity: 0.85;
+            font-size: 15px;
+        }
+        .content {
+            background: white;
+            padding: 30px;
+            border-radius: 0 0 8px 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        .metric-section {
+            margin: 30px 0;
+            border-left: 4px solid #1a56db;
+            padding-left: 20px;
+        }
+        .metric-section h2 {
+            margin-top: 0;
+            color: #1a56db;
+            font-size: 18px;
+        }
+        .section-teal { border-left-color: #0e9f6e; }
+        .section-teal h2 { color: #0e9f6e; }
+        .section-orange { border-left-color: #d03801; }
+        .section-orange h2 { color: #d03801; }
+        .section-green { border-left-color: #057a55; }
+        .section-green h2 { color: #057a55; }
+        .section-red { border-left-color: #c81e1e; }
+        .section-red h2 { color: #c81e1e; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+            font-size: 14px;
+        }
+        th {
+            background-color: #f3f4f6;
+            padding: 11px 12px;
+            text-align: left;
+            font-weight: 600;
+            border-bottom: 2px solid #e5e7eb;
+            font-size: 13px;
+        }
+        td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #e5e7eb;
+            vertical-align: top;
+        }
+        tr:hover {
+            background-color: #f9fafb;
+        }
+        .footer {
+            margin-top: 30px;
+            padding: 20px;
+            background-color: #f3f4f6;
+            border-radius: 8px;
+            font-size: 13px;
+            color: #6b7280;
+        }
+        .footer strong {
+            color: #374151;
+        }
+        .no-data {
+            color: #9ca3af;
+            font-style: italic;
+            padding: 20px;
+            text-align: center;
+            background-color: #f9fafb;
+            border-radius: 4px;
+        }
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .badge-success {
+            background-color: #def7ec;
+            color: #03543f;
+        }
+        .badge-warning {
+            background-color: #fef3c7;
+            color: #92400e;
+        }
+        .badge-danger {
+            background-color: #fde8e8;
+            color: #9b1c1c;
+        }
+        .badge-down {
+            background-color: #dbeafe;
+            color: #1e40af;
+        }
+        .badge-neutral {
+            background-color: #f3f4f6;
+            color: #4b5563;
+        }
+        .degraded-alert {
+            background-color: #fef3c7;
+            border-left: 4px solid #f59e0b;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .degraded-alert h2 {
+            margin-top: 0;
+            color: #92400e;
+        }
+        .market-phase-banner {
+            background: linear-gradient(90deg, #eff6ff 0%, #f0fdf4 100%);
+            border: 1px solid #bfdbfe;
+            border-radius: 8px;
+            padding: 16px 20px;
+            margin: 0 0 24px 0;
+            text-align: center;
+        }
+        .market-phase-label {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: #6b7280;
+            margin-bottom: 4px;
+        }
+        .market-phase-value {
+            font-size: 20px;
+            font-weight: 700;
+            color: #1e3a5f;
+        }
+        .snapshot-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 12px 0 0 0;
+        }
+        .snapshot-cell {
+            width: 50%;
+            padding: 14px 16px;
+            background-color: #f9fafb;
+            border: 1px solid #e5e7eb;
+            vertical-align: top;
+        }
+        .snapshot-cell:first-child {
+            border-right: none;
+            border-radius: 6px 0 0 6px;
+        }
+        .snapshot-cell:last-child {
+            border-radius: 0 6px 6px 0;
+        }
+        .snapshot-label {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #6b7280;
+            margin-bottom: 4px;
+        }
+        .snapshot-value {
+            font-size: 26px;
+            font-weight: 700;
+            color: #111827;
+            line-height: 1.1;
+        }
+        .snapshot-sub {
+            font-size: 12px;
+            color: #6b7280;
+            margin-top: 4px;
+        }
+        .insight-box {
+            background-color: #f9fafb;
+            border-left: 3px solid #9ca3af;
+            padding: 10px 14px;
+            margin: 12px 0 4px 0;
+            font-size: 13px;
+            color: #4b5563;
+            border-radius: 0 4px 4px 0;
+        }
+        .insight-box strong {
+            color: #1f2937;
+        }
+        .insight-orange {
+            border-left-color: #f59e0b;
+        }
+        .data-note {
+            font-size: 11px;
+            color: #9ca3af;
+            font-style: italic;
+        }
+        .prop-detail {
+            font-size: 12px;
+            color: #6b7280;
+            margin-top: 2px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🏡 SRQ Pulse</h1>
+        <p>Sarasota Real Estate &mdash; Week of October 15, 2026</p>
+    </div>
+
+    <div class="content">
+        
+
+        <!-- MARKET SNAPSHOT -->
+        
+        <div class="market-phase-banner">
+            <div class="market-phase-label">This Week's Market Condition</div>
+            <div class="market-phase-value">Buyer's Market</div>
+        </div>
+
+        <div class="metric-section" style="border-left-color: #1a56db;">
+            <h2 style="color: #1a56db;">📋 Market Snapshot</h2>
+            <p style="color: #6b7280; font-size: 13px; margin-bottom: 0;">Key numbers for the week of October 15, 2026</p>
+
+            <table class="snapshot-table">
+                <tr>
+                    <td class="snapshot-cell">
+                        <div class="snapshot-label">Median Sale Price</div>
+                        
+                        <div class="snapshot-value">$418,250</div>
+                        <div class="snapshot-sub">-6.5% vs. last year (down)</div>
+                        
+                    </td>
+                    <td class="snapshot-cell">
+                        <div class="snapshot-label">Months of Supply</div>
+                        
+                        <div class="snapshot-value">31 mo</div>
+                        <div class="snapshot-sub">Buyers have significant leverage</div>
+                        
+                    </td>
+                </tr>
+            </table>
+
+            <div class="insight-box">
+                <strong>What this means:</strong> With 31 months of supply and a median price of $418,250, buyers currently have more negotiating room than usual.
+            </div>
+            
+            <div class="insight-box insight-orange">
+                <strong>Trending neighborhood:</strong> Zip 34241 saw the strongest price growth (+14.7%) with 789 sales in the past year
+            </div>
+            
+            
+            <div class="insight-box">
+                <strong>Best value area:</strong> Zip 34243 has the lowest sale-to-assessed ratio (0.34x) — relatively more affordable
+            </div>
+            
+        </div>
+        
+
+        <!-- SECTION 1: ARE PRICES RISING OR FALLING? -->
+        <div class="metric-section">
+            <h2>📉 Are Prices Rising or Falling?</h2>
+            <p>Median sale price and how close homes are selling to asking price (last 4 weeks).</p>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Week</th>
+                        <th>Median Price</th>
+                        <th>Week-over-Week</th>
+                        <th>Year-over-Year</th>
+                        <th>Sale-to-List</th>
+                        <th>Signal</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    
+                    <tr>
+                        <td>Jan 18</td>
+                        <td><strong>$416,875</strong></td>
+                        <td>—</td>
+                        <td>-3.8%</td>
+                        <td>95.8%</td>
+                        <td>BUYERS LEVERAGE (Ratio: 95.8%)</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>Jan 25</td>
+                        <td><strong>$418,500</strong></td>
+                        <td>+0.4%</td>
+                        <td>-4.2%</td>
+                        <td>95.2%</td>
+                        <td>BUYERS LEVERAGE (Ratio: 95.2%, Price UP)</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>Feb 01</td>
+                        <td><strong>$418,250</strong></td>
+                        <td>-0.1%</td>
+                        <td>-4.8%</td>
+                        <td>95.0%</td>
+                        <td>BUYERS LEVERAGE (Ratio: 95.0%, Price DOWN)</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>Feb 08</td>
+                        <td><strong>$418,250</strong></td>
+                        <td>+0.0%</td>
+                        <td>-6.5%</td>
+                        <td>95.3%</td>
+                        <td>BUYERS LEVERAGE (Ratio: 95.3%, Price UP)</td>
+                    </tr>
+                    
+                </tbody>
+            </table>
+            
+            <div class="insight-box">
+                <strong>What to know:</strong>
+                
+                Homes are selling below asking price (95.3% of list on average). Buyers may have room to negotiate.
+                
+            </div>
+            
+        </div>
+
+        <!-- SECTION 2: HOW MUCH HOUSING IS AVAILABLE? -->
+        <div class="metric-section section-teal">
+            <h2>📦 How Much Housing Is Available?</h2>
+            <p>Months of supply, new listings coming to market, and homes going under contract (last 4 weeks).</p>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Week</th>
+                        <th>Months of Supply</th>
+                        <th>YoY Change</th>
+                        <th>New Listings</th>
+                        <th>Homes Sold</th>
+                        <th>Market Condition</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    
+                    <tr>
+                        <td>Feb 08</td>
+                        <td><strong>31.0</strong></td>
+                        <td>-20.5%</td>
+                        <td>448</td>
+                        <td>194</td>
+                        <td>Buyer's Market — Lots of inventory to choose from</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>Feb 01</td>
+                        <td><strong>30.0</strong></td>
+                        <td>-16.7%</td>
+                        <td>436</td>
+                        <td>196</td>
+                        <td>Buyer's Market — Lots of inventory to choose from</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>Jan 25</td>
+                        <td><strong>31.0</strong></td>
+                        <td>-20.5%</td>
+                        <td>396</td>
+                        <td>189</td>
+                        <td>Buyer's Market — Lots of inventory to choose from</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>Jan 18</td>
+                        <td><strong>31.0</strong></td>
+                        <td>-18.4%</td>
+                        <td>333</td>
+                        <td>184</td>
+                        <td>Buyer's Market — Lots of inventory to choose from</td>
+                    </tr>
+                    
+                </tbody>
+            </table>
+            
+            <div class="insight-box">
+                <strong>What to know:</strong>
+                
+                At 31 months of supply, buyers have significant negotiating power — there are more homes available than buyers right now.
+                
+                
+                New listings (448) are outpacing homes sold (194) this week.
+                
+            </div>
+            
+        </div>
+
+        <!-- SECTION 3: HOME VALUE & RENT TREND -->
+        <div class="metric-section section-teal">
+            <h2>📈 Sarasota Home Value &amp; Rent Trend</h2>
+            <p>How average home values and typical rents have moved over the past 6 months (county-wide).</p>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Month</th>
+                        <th>Avg. Home Value (Zillow)</th>
+                        <th>Typical Monthly Rent</th>
+                        <th>Rent-to-Value Ratio</th>
+                        <th>Trend</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    
+                    <tr>
+                        <td>Mar 2026</td>
+                        <td>$398,643</td>
+                        <td>$2,140/mo</td>
+                        <td>6.44%</td>
+                        <td>→ Flat</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>Apr 2026</td>
+                        <td>$397,715</td>
+                        <td>$2,134/mo</td>
+                        <td>6.44%</td>
+                        <td>→ Flat</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>May 2026</td>
+                        <td>$396,495</td>
+                        <td>$2,139/mo</td>
+                        <td>6.47%</td>
+                        <td>↑ Expanding</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>Jun 2026</td>
+                        <td>$395,649</td>
+                        <td>$2,137/mo</td>
+                        <td>6.48%</td>
+                        <td>↑ Expanding</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>Jul 2026</td>
+                        <td>$395,747</td>
+                        <td>$2,134/mo</td>
+                        <td>6.47%</td>
+                        <td>↓ Compressing</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>Aug 2026</td>
+                        <td>$396,714</td>
+                        <td>$2,144/mo</td>
+                        <td>6.48%</td>
+                        <td>↑ Expanding</td>
+                    </tr>
+                    
+                </tbody>
+            </table>
+            
+            <div class="insight-box">
+                <strong>What this means:</strong>
+                A 6.5% annual rent-to-value ratio means that for a typical
+                $396,714 home, gross annual rent is roughly $25,723.
+                This is a county-wide estimate — actual figures vary significantly by neighborhood.
+            </div>
+            
+        </div>
+
+        <!-- SECTION 4: WHERE ARE HOMES PRICED FAIRLY? (Buyer Value Index) -->
+        <div class="metric-section section-orange">
+            <h2>🏘️ Where Are Homes Priced Fairly?</h2>
+            <p>Comparing recent median sale prices to county-assessed values by zip code (last 12 months, residential only).</p>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Zip</th>
+                        <th>Median Sale Price</th>
+                        <th>Avg. Assessed Value</th>
+                        <th>Sale vs. Assessed</th>
+                        <th>Buyer Signal</th>
+                        <th>Sales</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    
+                    <tr>
+                        <td><strong>34243</strong></td>
+                        <td>$350,000</td>
+                        <td>$1,019,786</td>
+                        <td>
+                            <span class="badge badge-success">
+                                0.34x
+                            </span>
+                        </td>
+                        <td>Below assessed</td>
+                        <td class="data-note">111</td>
+                    </tr>
+                    
+                    <tr>
+                        <td><strong>34239</strong></td>
+                        <td>$575,000</td>
+                        <td>$884,028</td>
+                        <td>
+                            <span class="badge badge-success">
+                                0.65x
+                            </span>
+                        </td>
+                        <td>Below assessed</td>
+                        <td class="data-note">421</td>
+                    </tr>
+                    
+                    <tr>
+                        <td><strong>34234</strong></td>
+                        <td>$305,000</td>
+                        <td>$455,349</td>
+                        <td>
+                            <span class="badge badge-success">
+                                0.67x
+                            </span>
+                        </td>
+                        <td>Below assessed</td>
+                        <td class="data-note">355</td>
+                    </tr>
+                    
+                    <tr>
+                        <td><strong>34233</strong></td>
+                        <td>$329,500</td>
+                        <td>$466,226</td>
+                        <td>
+                            <span class="badge badge-success">
+                                0.71x
+                            </span>
+                        </td>
+                        <td>Below assessed</td>
+                        <td class="data-note">364</td>
+                    </tr>
+                    
+                    <tr>
+                        <td><strong>34237</strong></td>
+                        <td>$328,250</td>
+                        <td>$425,717</td>
+                        <td>
+                            <span class="badge badge-success">
+                                0.77x
+                            </span>
+                        </td>
+                        <td>Below assessed</td>
+                        <td class="data-note">282</td>
+                    </tr>
+                    
+                    <tr>
+                        <td><strong>34231</strong></td>
+                        <td>$395,000</td>
+                        <td>$510,113</td>
+                        <td>
+                            <span class="badge badge-success">
+                                0.77x
+                            </span>
+                        </td>
+                        <td>Below assessed</td>
+                        <td class="data-note">755</td>
+                    </tr>
+                    
+                    <tr>
+                        <td><strong>34236</strong></td>
+                        <td>$1,299,750</td>
+                        <td>$1,591,511</td>
+                        <td>
+                            <span class="badge badge-success">
+                                0.82x
+                            </span>
+                        </td>
+                        <td>Below assessed</td>
+                        <td class="data-note">592</td>
+                    </tr>
+                    
+                    <tr>
+                        <td><strong>34242</strong></td>
+                        <td>$865,000</td>
+                        <td>$1,024,322</td>
+                        <td>
+                            <span class="badge badge-success">
+                                0.84x
+                            </span>
+                        </td>
+                        <td>Below assessed</td>
+                        <td class="data-note">558</td>
+                    </tr>
+                    
+                    <tr>
+                        <td><strong>34232</strong></td>
+                        <td>$348,250</td>
+                        <td>$394,132</td>
+                        <td>
+                            <span class="badge badge-success">
+                                0.88x
+                            </span>
+                        </td>
+                        <td>Below assessed</td>
+                        <td class="data-note">606</td>
+                    </tr>
+                    
+                    <tr>
+                        <td><strong>34238</strong></td>
+                        <td>$470,000</td>
+                        <td>$506,105</td>
+                        <td>
+                            <span class="badge badge-success">
+                                0.93x
+                            </span>
+                        </td>
+                        <td>Below assessed</td>
+                        <td class="data-note">735</td>
+                    </tr>
+                    
+                    <tr>
+                        <td><strong>34240</strong></td>
+                        <td>$886,250</td>
+                        <td>$900,959</td>
+                        <td>
+                            <span class="badge badge-neutral">
+                                0.98x
+                            </span>
+                        </td>
+                        <td>Near assessed value</td>
+                        <td class="data-note">918</td>
+                    </tr>
+                    
+                    <tr>
+                        <td><strong>34235</strong></td>
+                        <td>$328,150</td>
+                        <td>$324,999</td>
+                        <td>
+                            <span class="badge badge-neutral">
+                                1.01x
+                            </span>
+                        </td>
+                        <td>Near assessed value</td>
+                        <td class="data-note">370</td>
+                    </tr>
+                    
+                    <tr>
+                        <td><strong>34241</strong></td>
+                        <td>$678,000</td>
+                        <td>$561,936</td>
+                        <td>
+                            <span class="badge badge-neutral">
+                                1.21x
+                            </span>
+                        </td>
+                        <td>Above assessed</td>
+                        <td class="data-note">789</td>
+                    </tr>
+                    
+                </tbody>
+            </table>
+            <div class="insight-box">
+                <strong>How to read this:</strong> A ratio above 1.0x means buyers are paying more than the county's assessed
+                value — common in active markets. Below 1.0x may indicate a softer neighborhood. County assessments
+                typically lag the market by 1–2 years, so this is a relative comparison, not an appraisal.
+            </div>
+            
+        </div>
+
+        <!-- SECTION 5: PRICE CHANGES BY NEIGHBORHOOD -->
+        <div class="metric-section">
+            <h2>📍 Price Changes by Neighborhood (Year Over Year)</h2>
+            <p>Median sale price in each zip code — last 12 months vs. the year before. Residential sales only. Zips marked * have fewer than 20 sales (treat as directional only).</p>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Zip</th>
+                        <th>Current Median</th>
+                        <th>Prior Year Median</th>
+                        <th>YoY Change</th>
+                        <th>Sales</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    
+                    <tr>
+                        <td><strong>34236</strong></td>
+                        <td>$1,400,000</td>
+                        <td>$1,300,000</td>
+                        <td>
+                            <span class="badge badge-warning">
+                                +7.7%
+                            </span>
+                            
+                        </td>
+                        <td class="data-note">631</td>
+                    </tr>
+                    
+                    <tr>
+                        <td><strong>34240</strong></td>
+                        <td>$886,250</td>
+                        <td>$830,000</td>
+                        <td>
+                            <span class="badge badge-warning">
+                                +6.8%
+                            </span>
+                            
+                        </td>
+                        <td class="data-note">918</td>
+                    </tr>
+                    
+                    <tr>
+                        <td><strong>34242</strong></td>
+                        <td>$875,000</td>
+                        <td>$915,000</td>
+                        <td>
+                            <span class="badge badge-neutral">
+                                -4.4%
+                            </span>
+                            
+                        </td>
+                        <td class="data-note">564</td>
+                    </tr>
+                    
+                    <tr>
+                        <td><strong>34241</strong></td>
+                        <td>$678,000</td>
+                        <td>$591,200</td>
+                        <td>
+                            <span class="badge badge-warning">
+                                +14.7%
+                            </span>
+                            
+                        </td>
+                        <td class="data-note">789</td>
+                    </tr>
+                    
+                    <tr>
+                        <td><strong>34239</strong></td>
+                        <td>$575,000</td>
+                        <td>$606,000</td>
+                        <td>
+                            <span class="badge badge-down">
+                                -5.1%
+                            </span>
+                            
+                        </td>
+                        <td class="data-note">421</td>
+                    </tr>
+                    
+                    <tr>
+                        <td><strong>34238</strong></td>
+                        <td>$470,000</td>
+                        <td>$510,000</td>
+                        <td>
+                            <span class="badge badge-down">
+                                -7.8%
+                            </span>
+                            
+                        </td>
+                        <td class="data-note">735</td>
+                    </tr>
+                    
+                    <tr>
+                        <td><strong>34231</strong></td>
+                        <td>$395,000</td>
+                        <td>$398,500</td>
+                        <td>
+                            <span class="badge badge-neutral">
+                                -0.9%
+                            </span>
+                            
+                        </td>
+                        <td class="data-note">756</td>
+                    </tr>
+                    
+                    <tr>
+                        <td><strong>34243</strong></td>
+                        <td>$350,000</td>
+                        <td>$440,500</td>
+                        <td>
+                            <span class="badge badge-down">
+                                -20.5%
+                            </span>
+                            
+                        </td>
+                        <td class="data-note">111</td>
+                    </tr>
+                    
+                    <tr>
+                        <td><strong>34232</strong></td>
+                        <td>$348,250</td>
+                        <td>$360,000</td>
+                        <td>
+                            <span class="badge badge-neutral">
+                                -3.3%
+                            </span>
+                            
+                        </td>
+                        <td class="data-note">606</td>
+                    </tr>
+                    
+                    <tr>
+                        <td><strong>34233</strong></td>
+                        <td>$329,500</td>
+                        <td>$385,000</td>
+                        <td>
+                            <span class="badge badge-down">
+                                -14.4%
+                            </span>
+                            
+                        </td>
+                        <td class="data-note">364</td>
+                    </tr>
+                    
+                    <tr>
+                        <td><strong>34237</strong></td>
+                        <td>$329,000</td>
+                        <td>$335,000</td>
+                        <td>
+                            <span class="badge badge-neutral">
+                                -1.8%
+                            </span>
+                            
+                        </td>
+                        <td class="data-note">283</td>
+                    </tr>
+                    
+                    <tr>
+                        <td><strong>34235</strong></td>
+                        <td>$328,150</td>
+                        <td>$341,500</td>
+                        <td>
+                            <span class="badge badge-neutral">
+                                -3.9%
+                            </span>
+                            
+                        </td>
+                        <td class="data-note">370</td>
+                    </tr>
+                    
+                    <tr>
+                        <td><strong>34234</strong></td>
+                        <td>$305,000</td>
+                        <td>$285,000</td>
+                        <td>
+                            <span class="badge badge-warning">
+                                +7.0%
+                            </span>
+                            
+                        </td>
+                        <td class="data-note">355</td>
+                    </tr>
+                    
+                </tbody>
+            </table>
+            <div class="insight-box">
+                <strong>What to know:</strong> These are recorded county sales prices, not list prices or Zestimate estimates.
+                Orange badge = prices rose vs. last year. Blue badge = prices fell.
+                Large swings (like +40%) in low-volume zips may reflect a single unusual sale — look at the sales count.
+            </div>
+            
+        </div>
+
+        <!-- SECTION 6: SALE PRICE VS. COUNTY ASSESSMENT -->
+        <div class="metric-section section-green">
+            <h2>📊 Are Sale Prices Above or Below County Assessments?</h2>
+            <p>The Sarasota County Property Appraiser assigns a value to each property. This shows how actual sale prices compare.</p>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Zip</th>
+                        <th>Median Ratio</th>
+                        <th>What It Means</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    
+                    <tr>
+                        <td><strong>34235</strong></td>
+                        <td>
+                            <span class="badge badge-warning">
+                                1.22x
+                            </span>
+                        </td>
+                        <td>Well above assessed — high demand area</td>
+                    </tr>
+                    
+                    <tr>
+                        <td><strong>34242</strong></td>
+                        <td>
+                            <span class="badge badge-warning">
+                                1.23x
+                            </span>
+                        </td>
+                        <td>Well above assessed — high demand area</td>
+                    </tr>
+                    
+                    <tr>
+                        <td><strong>34233</strong></td>
+                        <td>
+                            <span class="badge badge-warning">
+                                1.24x
+                            </span>
+                        </td>
+                        <td>Well above assessed — high demand area</td>
+                    </tr>
+                    
+                    <tr>
+                        <td><strong>34238</strong></td>
+                        <td>
+                            <span class="badge badge-warning">
+                                1.24x
+                            </span>
+                        </td>
+                        <td>Well above assessed — high demand area</td>
+                    </tr>
+                    
+                    <tr>
+                        <td><strong>34236</strong></td>
+                        <td>
+                            <span class="badge badge-warning">
+                                1.24x
+                            </span>
+                        </td>
+                        <td>Well above assessed — high demand area</td>
+                    </tr>
+                    
+                    <tr>
+                        <td><strong>34232</strong></td>
+                        <td>
+                            <span class="badge badge-warning">
+                                1.25x
+                            </span>
+                        </td>
+                        <td>Well above assessed — high demand area</td>
+                    </tr>
+                    
+                    <tr>
+                        <td><strong>34243</strong></td>
+                        <td>
+                            <span class="badge badge-warning">
+                                1.26x
+                            </span>
+                        </td>
+                        <td>Well above assessed — high demand area</td>
+                    </tr>
+                    
+                    <tr>
+                        <td><strong>34239</strong></td>
+                        <td>
+                            <span class="badge badge-warning">
+                                1.26x
+                            </span>
+                        </td>
+                        <td>Well above assessed — high demand area</td>
+                    </tr>
+                    
+                    <tr>
+                        <td><strong>34234</strong></td>
+                        <td>
+                            <span class="badge badge-warning">
+                                1.27x
+                            </span>
+                        </td>
+                        <td>Well above assessed — high demand area</td>
+                    </tr>
+                    
+                    <tr>
+                        <td><strong>34231</strong></td>
+                        <td>
+                            <span class="badge badge-warning">
+                                1.28x
+                            </span>
+                        </td>
+                        <td>Well above assessed — high demand area</td>
+                    </tr>
+                    
+                    <tr>
+                        <td><strong>34240</strong></td>
+                        <td>
+                            <span class="badge badge-warning">
+                                1.35x
+                            </span>
+                        </td>
+                        <td>Well above assessed — high demand area</td>
+                    </tr>
+                    
+                    <tr>
+                        <td><strong>34251</strong></td>
+                        <td>
+                            <span class="badge badge-warning">
+                                1.35x
+                            </span>
+                        </td>
+                        <td>Well above assessed — high demand area</td>
+                    </tr>
+                    
+                    <tr>
+                        <td><strong>34241</strong></td>
+                        <td>
+                            <span class="badge badge-warning">
+                                1.38x
+                            </span>
+                        </td>
+                        <td>Well above assessed — high demand area</td>
+                    </tr>
+                    
+                    <tr>
+                        <td><strong>34237</strong></td>
+                        <td>
+                            <span class="badge badge-warning">
+                                1.38x
+                            </span>
+                        </td>
+                        <td>Well above assessed — high demand area</td>
+                    </tr>
+                    
+                </tbody>
+            </table>
+            <div class="insight-box">
+                <strong>Context:</strong> County assessments typically lag market values by 1–2 years.
+                A ratio of 1.22x means homes are selling 22% above what the county assessed them at —
+                this is normal in an appreciating market. A ratio near or below 1.0x can signal cooling prices.
+            </div>
+            
+        </div>
+
+        <!-- SECTION 7: FLIP ACTIVITY -->
+        <div class="metric-section section-red">
+            <h2>🔄 Flip Activity (Last 6 Months)</h2>
+            <p><strong>234 total — 172 profitable, 62 loss</strong> &mdash; properties bought and resold within 4–12 months.</p>
+
+            
+            <h3 style="color: #057a55; margin-top: 20px; font-size: 15px;">Recent Profitable Flips</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Property</th>
+                        <th>Purchased</th>
+                        <th>Sold</th>
+                        <th>Gain</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    
+                    <tr>
+                        <td>
+                            <strong>5600 BENTGRASS DR #8-107, Sarasota FL 34235</strong>
+                            
+                            <div class="prop-detail">1,004 sqft, 1 bed</div>
+                            
+                        </td>
+                        <td>$175,000<br><span class="data-note">Jan 29, 2026</span></td>
+                        <td>$190,000<br><span class="data-note">Jun 11, 2026</span></td>
+                        <td><span class="badge badge-success">+8.6%</span></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>
+                            <strong>5241 MARSH FIELD LN #18, Sarasota FL 34235</strong>
+                            
+                            <div class="prop-detail">1,725 sqft, 2 bed</div>
+                            
+                        </td>
+                        <td>$230,000<br><span class="data-note">May 08, 2026</span></td>
+                        <td>$390,000<br><span class="data-note">Sep 22, 2026</span></td>
+                        <td><span class="badge badge-success">+69.6%</span></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>
+                            <strong>5800 BROWN LN, Sarasota FL 34232</strong>
+                            
+                        </td>
+                        <td>$3,200,000<br><span class="data-note">Feb 27, 2026</span></td>
+                        <td>$3,937,500<br><span class="data-note">Aug 05, 2026</span></td>
+                        <td><span class="badge badge-success">+23.0%</span></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>
+                            <strong>3950 ROXANE BLVD #APT 2-B, Sarasota FL 34235</strong>
+                            
+                            <div class="prop-detail">715 sqft, 1 bed</div>
+                            
+                        </td>
+                        <td>$55,000<br><span class="data-note">Oct 28, 2025</span></td>
+                        <td>$87,400<br><span class="data-note">Aug 10, 2026</span></td>
+                        <td><span class="badge badge-success">+58.9%</span></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>
+                            <strong>4420 OAK VIEW DR, Sarasota FL 34232</strong>
+                            
+                            <div class="prop-detail">2,253 sqft, 3 bed</div>
+                            
+                        </td>
+                        <td>$450,000<br><span class="data-note">Dec 05, 2025</span></td>
+                        <td>$765,000<br><span class="data-note">Jul 27, 2026</span></td>
+                        <td><span class="badge badge-success">+70.0%</span></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>
+                            <strong>4343 ARROW AVE, Sarasota FL 34232</strong>
+                            
+                            <div class="prop-detail">1,616 sqft, 3 bed</div>
+                            
+                        </td>
+                        <td>$349,000<br><span class="data-note">Jul 25, 2025</span></td>
+                        <td>$525,000<br><span class="data-note">Apr 30, 2026</span></td>
+                        <td><span class="badge badge-success">+50.4%</span></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>
+                            <strong>2989 GREENBRIAR ST, Sarasota FL 34237</strong>
+                            
+                            <div class="prop-detail">1,165 sqft, 3 bed</div>
+                            
+                        </td>
+                        <td>$180,000<br><span class="data-note">Jan 30, 2026</span></td>
+                        <td>$435,000<br><span class="data-note">Jun 24, 2026</span></td>
+                        <td><span class="badge badge-success">+141.7%</span></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>
+                            <strong>3101 BAY ST, Sarasota FL 34237</strong>
+                            
+                            <div class="prop-detail">1,480 sqft, 3 bed</div>
+                            
+                        </td>
+                        <td>$711,000<br><span class="data-note">Mar 13, 2026</span></td>
+                        <td>$750,000<br><span class="data-note">Aug 12, 2026</span></td>
+                        <td><span class="badge badge-success">+5.5%</span></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>
+                            <strong>3141 ALTA VISTA ST, Sarasota FL 34237</strong>
+                            
+                            <div class="prop-detail">1,638 sqft, 3 bed</div>
+                            
+                        </td>
+                        <td>$102,500<br><span class="data-note">Jun 27, 2025</span></td>
+                        <td>$415,000<br><span class="data-note">Apr 23, 2026</span></td>
+                        <td><span class="badge badge-success">+304.9%</span></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>
+                            <strong>3141 IRVING ST, Sarasota FL 34237</strong>
+                            
+                            <div class="prop-detail">1,221 sqft, 3 bed</div>
+                            
+                        </td>
+                        <td>$200,000<br><span class="data-note">Oct 23, 2025</span></td>
+                        <td>$399,900<br><span class="data-note">Jul 08, 2026</span></td>
+                        <td><span class="badge badge-success">+100.0%</span></td>
+                    </tr>
+                    
+                </tbody>
+            </table>
+            
+
+            
+            <h3 style="color: #9b1c1c; margin-top: 20px; font-size: 15px;">Recent Flips at a Loss</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Property</th>
+                        <th>Purchased</th>
+                        <th>Sold</th>
+                        <th>Loss</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    
+                    <tr>
+                        <td>
+                            <strong>Address unavailable</strong>
+                            
+                        </td>
+                        <td>$1,500,000<br><span class="data-note">Mar 11, 2026</span></td>
+                        <td>$1,450,000<br><span class="data-note">Oct 06, 2026</span></td>
+                        <td><span class="badge badge-danger">-3.3%</span></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>
+                            <strong>Address unavailable</strong>
+                            
+                        </td>
+                        <td>$850,000<br><span class="data-note">Jan 12, 2026</span></td>
+                        <td>$506,000<br><span class="data-note">May 28, 2026</span></td>
+                        <td><span class="badge badge-danger">-40.5%</span></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>
+                            <strong>1005 HINES AVE, Sarasota FL 34237</strong>
+                            
+                            <div class="prop-detail">1,702 sqft, 3 bed</div>
+                            
+                        </td>
+                        <td>$472,000<br><span class="data-note">Jan 15, 2026</span></td>
+                        <td>$472,000<br><span class="data-note">Sep 01, 2026</span></td>
+                        <td><span class="badge badge-danger">+0.0%</span></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>
+                            <strong>4037 MAVERICK AVE, Sarasota FL 34233</strong>
+                            
+                            <div class="prop-detail">1,111 sqft, 3 bed</div>
+                            
+                        </td>
+                        <td>$350,000<br><span class="data-note">Mar 05, 2026</span></td>
+                        <td>$335,000<br><span class="data-note">Aug 20, 2026</span></td>
+                        <td><span class="badge badge-danger">-4.3%</span></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>
+                            <strong>4035 SCHOOL AVE S #B-3, Sarasota FL 34231</strong>
+                            
+                            <div class="prop-detail">561 sqft, 1 bed</div>
+                            
+                        </td>
+                        <td>$86,000<br><span class="data-note">Oct 06, 2025</span></td>
+                        <td>$65,000<br><span class="data-note">Jun 22, 2026</span></td>
+                        <td><span class="badge badge-danger">-24.4%</span></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>
+                            <strong>2231 PINE TER, Sarasota FL 34231</strong>
+                            
+                        </td>
+                        <td>$487,600<br><span class="data-note">Jul 23, 2025</span></td>
+                        <td>$425,000<br><span class="data-note">Apr 28, 2026</span></td>
+                        <td><span class="badge badge-danger">-12.8%</span></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>
+                            <strong>208 HOURGLASS WAY #V-11, Sarasota FL 34242</strong>
+                            
+                            <div class="prop-detail">1,432 sqft, 2 bed</div>
+                            
+                        </td>
+                        <td>$425,000<br><span class="data-note">Apr 21, 2026</span></td>
+                        <td>$410,000<br><span class="data-note">Sep 15, 2026</span></td>
+                        <td><span class="badge badge-danger">-3.5%</span></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>
+                            <strong>717 TREASURE BOAT WAY, Sarasota FL 34242</strong>
+                            
+                            <div class="prop-detail">1,978 sqft, 2 bed</div>
+                            
+                        </td>
+                        <td>$735,000<br><span class="data-note">Nov 04, 2025</span></td>
+                        <td>$587,100<br><span class="data-note">Jun 22, 2026</span></td>
+                        <td><span class="badge badge-danger">-20.1%</span></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>
+                            <strong>5571 RIVERBLUFF CIR #V-1, Sarasota FL 34231</strong>
+                            
+                            <div class="prop-detail">1,120 sqft, 2 bed</div>
+                            
+                        </td>
+                        <td>$212,500<br><span class="data-note">Jul 24, 2025</span></td>
+                        <td>$125,000<br><span class="data-note">Jun 24, 2026</span></td>
+                        <td><span class="badge badge-danger">-41.2%</span></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>
+                            <strong>915 SEASIDE DR #503, Sarasota FL 34242</strong>
+                            
+                            <div class="prop-detail">1,825 sqft, 3 bed</div>
+                            
+                        </td>
+                        <td>$2,250,000<br><span class="data-note">Oct 03, 2025</span></td>
+                        <td>$2,100,000<br><span class="data-note">Aug 06, 2026</span></td>
+                        <td><span class="badge badge-danger">-6.7%</span></td>
+                    </tr>
+                    
+                </tbody>
+            </table>
+            
+
+            
+
+            <div class="insight-box">
+                <strong>What flips tell us:</strong> Profitable flips indicate investors successfully adding value or
+                timing the market. Loss flips may signal overpriced purchases, renovation overruns, or softening
+                prices in that area. Data is from Sarasota County recorded Warranty Deed transactions.
+            </div>
+        </div>
+
+        <!-- SECTION 8: WHO IS BUYING? -->
+        <div class="metric-section">
+            <h2>🏢 Who Is Buying? Owners vs. Investors by Zip</h2>
+            <p>Share of sales in the past 12 months estimated to be investors (non-homesteaded purchasers). High investor share can mean more competition for owner-occupant buyers.</p>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Zip</th>
+                        <th>Total Sales</th>
+                        <th>Estimated Investor Share</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    
+                    <tr>
+                        <td><strong>34251</strong></td>
+                        <td>2</td>
+                        <td>
+                            <span class="badge badge-warning">
+                                100%
+                            </span>
+                            <span style="display: inline-block; background: #fef3c7; height: 8px; width: 100px; vertical-align: middle; margin-left: 6px; border-radius: 2px;"></span>
+                        </td>
+                    </tr>
+                    
+                    <tr>
+                        <td><strong>34242</strong></td>
+                        <td>605</td>
+                        <td>
+                            <span class="badge badge-warning">
+                                95%
+                            </span>
+                            <span style="display: inline-block; background: #fef3c7; height: 8px; width: 94px; vertical-align: middle; margin-left: 6px; border-radius: 2px;"></span>
+                        </td>
+                    </tr>
+                    
+                    <tr>
+                        <td><strong>34237</strong></td>
+                        <td>435</td>
+                        <td>
+                            <span class="badge badge-warning">
+                                92%
+                            </span>
+                            <span style="display: inline-block; background: #fef3c7; height: 8px; width: 92px; vertical-align: middle; margin-left: 6px; border-radius: 2px;"></span>
+                        </td>
+                    </tr>
+                    
+                    <tr>
+                        <td><strong>34231</strong></td>
+                        <td>830</td>
+                        <td>
+                            <span class="badge badge-warning">
+                                88%
+                            </span>
+                            <span style="display: inline-block; background: #fef3c7; height: 8px; width: 88px; vertical-align: middle; margin-left: 6px; border-radius: 2px;"></span>
+                        </td>
+                    </tr>
+                    
+                    <tr>
+                        <td><strong>34234</strong></td>
+                        <td>433</td>
+                        <td>
+                            <span class="badge badge-warning">
+                                87%
+                            </span>
+                            <span style="display: inline-block; background: #fef3c7; height: 8px; width: 87px; vertical-align: middle; margin-left: 6px; border-radius: 2px;"></span>
+                        </td>
+                    </tr>
+                    
+                    <tr>
+                        <td><strong>34239</strong></td>
+                        <td>452</td>
+                        <td>
+                            <span class="badge badge-warning">
+                                85%
+                            </span>
+                            <span style="display: inline-block; background: #fef3c7; height: 8px; width: 85px; vertical-align: middle; margin-left: 6px; border-radius: 2px;"></span>
+                        </td>
+                    </tr>
+                    
+                    <tr>
+                        <td><strong>34236</strong></td>
+                        <td>663</td>
+                        <td>
+                            <span class="badge badge-warning">
+                                85%
+                            </span>
+                            <span style="display: inline-block; background: #fef3c7; height: 8px; width: 85px; vertical-align: middle; margin-left: 6px; border-radius: 2px;"></span>
+                        </td>
+                    </tr>
+                    
+                    <tr>
+                        <td><strong>34235</strong></td>
+                        <td>373</td>
+                        <td>
+                            <span class="badge badge-warning">
+                                82%
+                            </span>
+                            <span style="display: inline-block; background: #fef3c7; height: 8px; width: 82px; vertical-align: middle; margin-left: 6px; border-radius: 2px;"></span>
+                        </td>
+                    </tr>
+                    
+                    <tr>
+                        <td><strong>34233</strong></td>
+                        <td>375</td>
+                        <td>
+                            <span class="badge badge-warning">
+                                81%
+                            </span>
+                            <span style="display: inline-block; background: #fef3c7; height: 8px; width: 81px; vertical-align: middle; margin-left: 6px; border-radius: 2px;"></span>
+                        </td>
+                    </tr>
+                    
+                    <tr>
+                        <td><strong>34238</strong></td>
+                        <td>738</td>
+                        <td>
+                            <span class="badge badge-warning">
+                                81%
+                            </span>
+                            <span style="display: inline-block; background: #fef3c7; height: 8px; width: 81px; vertical-align: middle; margin-left: 6px; border-radius: 2px;"></span>
+                        </td>
+                    </tr>
+                    
+                    <tr>
+                        <td><strong>34243</strong></td>
+                        <td>112</td>
+                        <td>
+                            <span class="badge badge-warning">
+                                80%
+                            </span>
+                            <span style="display: inline-block; background: #fef3c7; height: 8px; width: 80px; vertical-align: middle; margin-left: 6px; border-radius: 2px;"></span>
+                        </td>
+                    </tr>
+                    
+                    <tr>
+                        <td><strong>34232</strong></td>
+                        <td>619</td>
+                        <td>
+                            <span class="badge badge-warning">
+                                79%
+                            </span>
+                            <span style="display: inline-block; background: #fef3c7; height: 8px; width: 79px; vertical-align: middle; margin-left: 6px; border-radius: 2px;"></span>
+                        </td>
+                    </tr>
+                    
+                    <tr>
+                        <td><strong>34241</strong></td>
+                        <td>1118</td>
+                        <td>
+                            <span class="badge badge-warning">
+                                79%
+                            </span>
+                            <span style="display: inline-block; background: #fef3c7; height: 8px; width: 79px; vertical-align: middle; margin-left: 6px; border-radius: 2px;"></span>
+                        </td>
+                    </tr>
+                    
+                    <tr>
+                        <td><strong>34240</strong></td>
+                        <td>1076</td>
+                        <td>
+                            <span class="badge badge-warning">
+                                79%
+                            </span>
+                            <span style="display: inline-block; background: #fef3c7; height: 8px; width: 78px; vertical-align: middle; margin-left: 6px; border-radius: 2px;"></span>
+                        </td>
+                    </tr>
+                    
+                </tbody>
+            </table>
+            <div class="insight-box">
+                <strong>Note:</strong> "Investor" is estimated from the absence of a homestead exemption at the time
+                of the latest county data pull. This includes vacation homes, second homes, and short-term rentals
+                alongside traditional investment properties — it's a proxy, not a definitive count.
+            </div>
+            
+        </div>
+
+        
+
+        <div class="footer">
+            <strong>⚙️ Pipeline Health:</strong><br>
+            <span class="badge-success">Zillow: OK</span> 
+            <span class="badge-success">Redfin: OK</span> 
+            <span class="badge-success">SCPA: OK</span> 
+            <br>
+            Execution Time: 144.7s<br>
+            <br>
+            <em>Generated weekly by a serverless ETL pipeline. Data sourced from Redfin Data Center, Zillow Research, and Sarasota County Property Appraiser.</em>
+        </div>
+    </div>
+</body>
+</html>
